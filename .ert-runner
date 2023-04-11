@@ -1,0 +1,2 @@
+-l test/org-runbook-test.el
+--reporter dot
