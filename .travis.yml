@@ -1,0 +1,6 @@
+language: nix
+nix: 2.3.6
+env:
+  - EMACS_VERSION=27.1
+  - EMACS_VERSION=27.2
+script: nix-build nix/emacs-${EMACS_VERSION}.nix
