@@ -212,11 +212,13 @@ later substituted by `org-assistant'."
                                   (goto-char (point-min))
                                   (when (re-search-forward (rx (literal ,replacement-var))
                                                            nil t)
-                                    (let ((,insert-prompt-var (not (save-mark-and-excursion
-                                                                     (re-search-forward (rx
-                                                                                         "#+BEGIN_SRC"
-                                                                                         (+ whitespace)
-                                                                                         (or "assistant" "?")) nil t)))))
+                                    (let ((,insert-prompt-var (not
+                                                               (save-match-data
+                                                                 (save-mark-and-excursion
+                                                                   (re-search-forward (rx
+                                                                                       "#+BEGIN_SRC"
+                                                                                       (+ whitespace)
+                                                                                       (or "assistant" "?")) nil t))))))
                                       (save-excursion
                                         (replace-match (format "#+BEGIN_EXAMPLE
 %s
