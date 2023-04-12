@@ -176,6 +176,8 @@ the json response from the endpoint."
                                                     (cons "role" (symbol-name (car it)))))
                                             (vconcat))))))))
      (deferred:url-retrieve org-assistant-endpoint))
+   (deferred:error it (lambda (error) (message "Failed to load because of error:\n%S" error)
+                        (error "Failed")))
    (deferred:nextc it (lambda (buffer)
                         (with-current-buffer buffer
                           (goto-char (point-min))
