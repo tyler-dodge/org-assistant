@@ -157,14 +157,13 @@ The list of BLOCKS should be in chronological order, with the first
 being the earliest message.  Returns a deferred object representing
 the json response from the endpoint."
   (deferred:$
-   (let
-       ((url-request-method "POST")
-        (url-request-extra-headers
-         `(("Authorization" . ,(concat "Bearer "
-                                       (if (stringp org-assistant-auth-function)
-                                           org-assistant-auth-function
-                                         (funcall org-assistant-auth-function))))
-           ("Content-Type" . "application/json")))
+   (let ((url-request-method "POST")
+         (url-request-extra-headers
+          `(("Authorization" . ,(concat "Bearer "
+                                        (if (stringp org-assistant-auth-function)
+                                            org-assistant-auth-function
+                                          (funcall org-assistant-auth-function))))
+            ("Content-Type" . "application/json")))
         (url-request-data (let ((json-object-type 'alist)
                                 (json-key-type 'string)
                                 (json-array-type 'vector))
@@ -176,14 +175,16 @@ the json response from the endpoint."
                                                     (cons "role" (symbol-name (car it)))))
                                             (vconcat))))))))
      (deferred:url-retrieve org-assistant-endpoint))
-   (deferred:error it (lambda (error) (message "Failed to load because of error:\n%S" error)
-                        (error "Failed")))
    (deferred:nextc it (lambda (buffer)
                         (with-current-buffer buffer
                           (goto-char (point-min))
                           (re-search-forward (rx line-start eol) nil t)
-                          (json-read))))))
+                          (or (json-read)
+                              (error "Response was unexpectedly nil %S" (buffer-string))))))
+   (deferred:error it (lambda (error) (message "Failed to load because of error:\n%S" error)
+                        (error "Failed")))))
 
+;;;###autoload
 (defmacro org-assistant-org-babel-async-response (&rest prog)
   "Macro for handling asynchronous responses with `org-mode'.
 
