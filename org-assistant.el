@@ -180,9 +180,7 @@ the json response from the endpoint."
                           (goto-char (point-min))
                           (re-search-forward (rx line-start eol) nil t)
                           (or (json-read)
-                              (error "Response was unexpectedly nil %S" (buffer-string))))))
-   (deferred:error it (lambda (error) (message "Failed to load because of error:\n%S" error)
-                        (error "Failed")))))
+                              (error "Response was unexpectedly nil %S" (buffer-string))))))))
 
 ;;;###autoload
 (defmacro org-assistant-org-babel-async-response (&rest prog)
@@ -340,6 +338,7 @@ Assistant: Branch B Response
                                (alist-get 'message)
                                (alist-get 'content))
                         (string-fill it 80)))))
+          (deferred:error it (lambda (error) (list (format "%S" error))))
           (deferred:nextc it (lambda (response)
                                (babel-response (s-join "" response))))))))
 
