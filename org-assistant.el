@@ -3,7 +3,7 @@
 ;; Author: Tyler Dodge (tyler@tdodge.consulting)
 ;; Version: 0.1
 ;; Keywords: convenience
-;; Package-Requires: ((emacs "26.1") (uuid "0.0.3") (deferred "0.5.1") (s "1.12.0") (dash "2.19.1"))
+;; Package-Requires: ((emacs "28.1") (uuid "0.0.3") (deferred "0.5.1") (s "1.12.0") (dash "2.19.1"))
 ;; URL: https://github.com/tyler-dodge/org-assistant
 ;; Git-Repository: git://github.com/tyler-dodge/org-assistant.git
 ;; This program is free software; you can redistribute it and/or modify
@@ -55,6 +55,9 @@
 (require 's)
 (require 'uuid)
 (require 'dash)
+(require 'url)
+(require 'url-vars)
+(require 'auth-source)
 
 (defgroup org-assistant nil "Customization settings for `org-assistant'."
   :group 'org)
@@ -90,7 +93,6 @@ This should match `org-babel-default-header-args:?'")
   org-babel-default-header-args:assistant
   "Extra args so that org babel renders the results correctly.
 This should match `org-babel-default-header-args:assistant'")
-
 (defvar org-assistant-history nil
   "History variable for `org-assistant'.")
 
@@ -232,7 +234,7 @@ later substituted by `org-assistant'."
          ,replacement-var))))
 
 ;;;###autoload
-(defun org-babel-execute:assistant (_ _)
+(defun org-babel-execute:assistant (&rest _)
   "Execute an `org-assistant' in an org-babel context.
 
 This is intended to be called via org babel in a src block with Ctrl-C
@@ -343,7 +345,11 @@ Assistant: Branch B Response
                                (babel-response (s-join "" response))))))))
 
 ;;;###autoload
-(defalias #'org-babel-execute:? #'org-babel-execute:assistant)
+(defun org-babel-execute:? (&rest args)
+  "See `org-babel-execute:assistant'.
+
+ARGS is routed as is."
+  (apply #'org-babel-execute:assistant args))
 
 (defun org-assistant--org-blocks ()
   "Return a list of the blocks between point and the top heading of the tree.

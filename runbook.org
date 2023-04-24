@@ -18,3 +18,13 @@
     nix-build nix/emacs-27.2.nix
 
 #+END_SRC
+
+* Package Lint                                                          :PTY:
+#+BEGIN_SRC compile-queue
+    set -o errexit
+    set -o pipefail
+    set -o nounset
+    cd {{project_root}}
+    nix-build nix/package-lint.nix
+
+#+END_SRC
