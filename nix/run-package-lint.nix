@@ -2,11 +2,7 @@
 let
   pkgs = import <nixpkgs> {};
   versioned_emacs = emacsWithPackages (epkgs: with epkgs; [
-    ert-async
-    el-mock
-    ert-runner
     package-lint
-    dash
   ]);
 in derivation rec {
   name = "org-assistant";
