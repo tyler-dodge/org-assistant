@@ -253,7 +253,7 @@ later substituted by `org-assistant'."
          ,replacement-var))))
 
 ;;;###autoload
-(defun org-babel-execute:assistant (&rest _)
+(defun org-babel-execute:assistant (_ params)
   "Execute an `org-assistant' in an org-babel context.
 
 This is intended to be called via org babel in a src block with Ctrl-C
@@ -345,7 +345,7 @@ Assistant: Response
 User: Branch B
 Assistant: Branch B Response
 </example>"
-  (let ((blocks (org-assistant--org-blocks)))
+  (let ((blocks (org-assistant--org-blocks (org-babel-noweb-p params :eval))))
         (org-assistant-org-babel-async-response
          (deferred:$
           (org-assistant-execute blocks)
@@ -369,7 +369,7 @@ Assistant: Branch B Response
 ARGS is routed as is."
   (apply #'org-babel-execute:assistant args))
 
-(defun org-assistant--org-blocks ()
+(defun org-assistant--org-blocks (noweb)
   "Return a list of the blocks between point and the top heading of the tree.
 
 Only blocks that are within the top level section of each heading will
@@ -431,11 +431,13 @@ conversation."
                            (forward-line 1)
                            (cons message-type
                                  (string-trim
-                                  (buffer-substring-no-properties
-                                   (point)
-                                   (save-excursion (goto-char match-end)
-                                                   (forward-line 0)
-                                                   (point)))))))))))))
+                                  (if noweb
+                                      (org-babel-expand-noweb-references)
+                                      (buffer-substring-no-properties
+                                       (point)
+                                       (save-excursion (goto-char match-end)
+                                                       (forward-line 0)
+                                                       (point))))))))))))))
        collect
        (if has-prompt
            block
