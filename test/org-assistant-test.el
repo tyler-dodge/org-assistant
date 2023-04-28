@@ -46,25 +46,25 @@ C-response
 #+END_EXAMPLE
 ")
     (goto-char (point-min))
-    (should (eq (org-assistant--org-blocks) nil))
+    (should (eq (org-assistant--org-blocks nil) nil))
     (search-forward "#+BEGIN_EXAMPLE")
     (goto-char (match-beginning 0))
-    (should (equal (org-assistant--org-blocks) (list (cons 'system "System Prompt"))))
+    (should (equal (org-assistant--org-blocks nil) (list (cons 'system "System Prompt"))))
     (search-forward "#+BEGIN_SRC")
     (goto-char (match-beginning 0))
-    (should (equal (org-assistant--org-blocks) (list
+    (should (equal (org-assistant--org-blocks nil) (list
                                                 (cons 'system "System Prompt")
                                                 (cons 'user "A"))))
     (search-forward "#+BEGIN_EXAMPLE")
     (goto-char (match-beginning 0))
-    (should (equal (org-assistant--org-blocks)
+    (should (equal (org-assistant--org-blocks nil)
                    (list
                     (cons 'system "System Prompt")
                     (cons 'user "A")
                     (cons 'assistant "A-response"))))
     (search-forward "#+BEGIN_SRC")
     (goto-char (match-beginning 0))
-    (should (equal (org-assistant--org-blocks)
+    (should (equal (org-assistant--org-blocks nil)
                    (list
                     (cons 'system "System Prompt")
                     (cons 'user "A")
@@ -72,7 +72,7 @@ C-response
                     (cons 'user "B"))))
 
     (goto-char (point-max))
-    (should (equal (org-assistant--org-blocks)
+    (should (equal (org-assistant--org-blocks nil)
                    (list
                     (cons 'system "System Prompt")
                     (cons 'user "A")
@@ -116,7 +116,7 @@ C-response
 ")
     (goto-char (point-min))
     (search-forward "B-response")
-    (should (equal (org-assistant--org-blocks)
+    (should (equal (org-assistant--org-blocks nil)
                    (list
                     (cons 'system "System Prompt")
                     (cons 'user "A")
@@ -124,7 +124,7 @@ C-response
                     (cons 'user "B")
                     (cons 'assistant "B-response"))))
     (search-forward "C-response")
-    (should (equal (org-assistant--org-blocks)
+    (should (equal (org-assistant--org-blocks nil)
                    (list
                     (cons 'system "System Prompt")
                     (cons 'user "A")
