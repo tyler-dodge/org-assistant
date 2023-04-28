@@ -360,7 +360,7 @@ Assistant: Branch B Response
                                (alist-get 'content))))))
           (deferred:error it (lambda (error) (list (format "%S" error))))
           (deferred:nextc it (lambda (response)
-                               (babel-response (s-join "\n" response))))))))
+                               (babel-response (s-join "" response))))))))
 
 ;;;###autoload
 (defun org-babel-execute:? (&rest args)
