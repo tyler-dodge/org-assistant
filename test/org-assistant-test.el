@@ -203,8 +203,22 @@ C-response
     (goto-char (point-min))
     (search-forward "<<substitution-A>>")
     (should (equal (org-assistant--org-blocks t)
-                   (list
-                    '(system . "System Prompt")
-                    '(user . "A SUBSTITUTION"))))))
+                   '((system . "System Prompt")
+                     (user . "A SUBSTITUTION"))))
+
+    (search-forward "c-response")
+    (should (equal (org-assistant--org-blocks t)
+                   '((system . "System Prompt")
+                     (user . "A SUBSTITUTION")
+                     (assistant . "A-response")
+                     (user . "C")
+                     (assistant . "C-response"))))
+
+    (should (equal (org-assistant--org-blocks nil)
+                   '((system . "System Prompt")
+                     (user . "A <<substitution-A>>")
+                     (assistant . "A-response")
+                     (user . "C")
+                     (assistant . "C-response"))))))
 
 (provide 'org-assistant-test)
