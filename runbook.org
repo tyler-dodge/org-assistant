@@ -1,3 +1,26 @@
+* Run Test Interactively
+#+BEGIN_SRC compile-queue
+    set -o errexit
+    set -o pipefail
+    set -o nounset
+    cd {{project_root}}
+    nix-shell --run "emacs -q --eval '(package-initialize)' \
+    --file '{{project_root}}org-assistant.el' \
+    --eval '(add-to-list '\''package-archives '\''(\"melpa\" . \"https://melpa.org/packages/\") t)' \
+    --eval '(package-initialize)' \
+    --eval '(package-refresh-contents)' \
+    --eval '(package-install-file \"{{project_root}}org-assistant.el\")' \
+    --eval '(package-install '\''el-mock)' \
+    --eval '(require '\''ert)' \
+    --eval '(load-file \"{{project_root}}test/org-assistant-test.el\")' \
+    --eval '(require '\''org-assistant)' \
+    --eval '(ert-run-tests-interactively t)'"
+
+#+END_SRC
+
+#+RESULTS:
+: exited abnormally with code 1
+
 * Test 28.1                                                             :PTY:
 #+BEGIN_SRC compile-queue
     set -o errexit

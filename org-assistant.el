@@ -56,6 +56,7 @@
 (require 'uuid)
 (require 'dash)
 (require 'url)
+(require 'ob-core)
 (require 'url-vars)
 (require 'auth-source)
 (require 'simple)

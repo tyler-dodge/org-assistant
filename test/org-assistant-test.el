@@ -17,6 +17,7 @@
   "Sanity check to make sure `org-assistant--org-blocks' works as expected."
   (with-current-buffer (get-buffer-create " *assistant-test*")
     (erase-buffer)
+    (org-mode)
     (insert "* Question
 #+BEGIN_SRC text
 Should not be included
@@ -90,6 +91,7 @@ C-response
   "Sanity check to make sure `org-assistant--org-blocks' handles branches correctly."
   (with-current-buffer (get-buffer-create " *assistant-test*")
     (erase-buffer)
+    (org-mode)
     (insert "* Question
 #+BEGIN_EXAMPLE
 System Prompt
@@ -152,6 +154,7 @@ C-response
 (ert-deftest org-assistant-handles-noweb-output ()
   "Sanity check to make sure `org-assistant--org-blocks' handles branches correctly."
   (with-current-buffer (get-buffer-create " *assistant-test*")
+    (org-mode)
     (erase-buffer)
     (insert "* Question
 #+BEGIN_EXAMPLE
@@ -202,6 +205,7 @@ C-response
 ")
     (goto-char (point-min))
     (search-forward "<<substitution-A>>")
+    (forward-line 1)
     (should (equal (org-assistant--org-blocks t)
                    '((system . "System Prompt")
                      (user . "A SUBSTITUTION"))))

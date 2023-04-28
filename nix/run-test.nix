@@ -5,10 +5,6 @@ let
     ert-async
     el-mock
     ert-runner
-    uuid
-    deferred
-    s
-    dash
   ]);
 in derivation rec {
   name = "org-assistant";
