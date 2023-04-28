@@ -361,7 +361,7 @@ Assistant: Branch B Response
                                (alist-get 'content))))))
           (deferred:error it (lambda (error) (list (format "%S" error))))
           (deferred:nextc it (lambda (response)
-                               (babel-response (s-join "" response))))))))
+                               (babel-response (org-escape-code-in-string (s-join "" response)))))))))
 
 ;;;###autoload
 (defun org-babel-execute:? (&rest args)
@@ -432,13 +432,14 @@ conversation."
                            (forward-line 1)
                            (cons message-type
                                  (string-trim
-                                  (if (and noweb (eq message-type 'user))
-                                      (org-babel-expand-noweb-references)
-                                      (buffer-substring-no-properties
-                                       (point)
-                                       (save-excursion (goto-char match-end)
-                                                       (forward-line 0)
-                                                       (point))))))))))))))
+                                  (org-unescape-code-in-string
+                                   (if (and noweb (eq message-type 'user))
+                                       (org-babel-expand-noweb-references)
+                                     (buffer-substring-no-properties
+                                      (point)
+                                      (save-excursion (goto-char match-end)
+                                                      (forward-line 0)
+                                                      (point)))))))))))))))
        collect
        (if has-prompt
            block
