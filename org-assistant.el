@@ -122,6 +122,16 @@ contained in MESSAGE."
 (defvar org-assistant-mode-map (make-sparse-keymap)
   "Keymap for `org-assistant-mode' buffers.")
 
+(defconst org-assistant--begin-src-regexp
+  (rx "#+BEGIN_SRC"
+      (+ whitespace)
+      (or "assistant" "?"))
+  "Regexp for finding #+BEGIN_SRC ? blocks.")
+
+(defconst org-assistant--begin-example-regexp
+  (rx "#+BEGIN_EXAMPLE")
+  "Regexp for finding #+BEGIN_EXAMPLE blocks.")
+
 (define-minor-mode org-assistant-mode "Mode for org assistant buffers."
   :init-value nil
   :keymap org-assistant-mode-map)
@@ -220,15 +230,12 @@ later substituted by `org-assistant'."
                                     (let ((,insert-prompt-var (not
                                                                (save-match-data
                                                                  (save-mark-and-excursion
-                                                                   (re-search-forward (rx
-                                                                                       "#+BEGIN_SRC"
-                                                                                       (+ whitespace)
-                                                                                       (or "assistant" "?")) nil t))))))
+                                                                   (re-search-forward org-assistant--begin-src-regexp nil t))))))
                                       (save-excursion
                                         (replace-match (format "#+BEGIN_EXAMPLE
 %s
 #+END_EXAMPLE%s" message (if ,insert-prompt-var "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" "")) nil t))
-                                      (when ,insert-prompt-var (re-search-backward (rx "#+BEGIN_SRC"))
+                                      (when ,insert-prompt-var (re-search-backward org-assistant--begin-src-regexp)
                                             (forward-line 1)
                                             (point)))))
                               (progn (goto-char it)
@@ -395,17 +402,23 @@ conversation."
                                                             (*? anything)
                                                             "#+END_EXAMPLE"))))
                                         (min start-pt range-end) t)
+               if (save-excursion
+                    (save-match-data (goto-char (match-beginning 0))
+                                     (string-match-p
+                                      (rx (or (regexp org-assistant--begin-src-regexp)
+                                              (regexp org-assistant--begin-example-regexp)))
+                                      (thing-at-point 'line t))))
                collect (progn
                          (let* ((match-start (match-beginning 0))
                                 (match-end (match-end 0))
                                 (message-type
                                  (progn
                                    (goto-char match-start)
-                                   (let ((line (thing-at-point 'line)))
+                                   (let ((line (thing-at-point 'line t)))
                                      (if (s-contains-p "BEGIN_EXAMPLE" line)
                                          (if (save-excursion
                                                (forward-line -1)
-                                               (s-contains-p "#+SYSTEM" (thing-at-point 'line)))
+                                               (s-contains-p "#+SYSTEM" (thing-at-point 'line t)))
                                              'system
                                            'assistant) 'user)))))
                            (forward-line 1)
@@ -428,13 +441,13 @@ conversation."
 (defun org-assistant-explain-function ()
   "Ask the assistant to explain the function at point."
   (interactive)
-  (org-assistant-with-initial-message (concat (thing-at-point 'defun) "\nExplain this function for me")))
+  (org-assistant-with-initial-message (concat (thing-at-point 'defun t) "\nExplain this function for me")))
 
 ;;;###autoload
 (defun org-assistant-write-docstring ()
   "Ask the assistant to generate a docstring for the function at point."
   (interactive)
-  (org-assistant-with-initial-message (concat (thing-at-point 'defun) "\nWrite a concise docstring for me")))
+  (org-assistant-with-initial-message (concat (thing-at-point 'defun t) "\nWrite a concise docstring for me")))
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
