@@ -173,7 +173,7 @@ the json response from the endpoint."
                       `(("model" . ,org-assistant-model)
                         ("messages" . ,(->> blocks
                                             (--map (list
-                                                    (cons "content" (cdr it))
+                                                    (cons "content" (encode-coding-string (cdr it) 'utf-8))
                                                     (cons "role" (symbol-name (car it)))))
                                             (vconcat))))))))
      (deferred:url-retrieve org-assistant-endpoint))
@@ -181,8 +181,12 @@ the json response from the endpoint."
                         (with-current-buffer buffer
                           (goto-char (point-min))
                           (re-search-forward (rx line-start eol) nil t)
-                          (or (json-read)
-                              (error "Response was unexpectedly nil %S" (buffer-string))))))))
+                          (or
+                           (json-read-from-string
+                            (decode-coding-string
+                              (buffer-substring (point) (point-max))
+                             'utf-8))
+                           (error "Response was unexpectedly nil %S" (buffer-string))))))))
 
 ;;;###autoload
 (defmacro org-assistant-org-babel-async-response (&rest prog)
