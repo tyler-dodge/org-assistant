@@ -3,7 +3,7 @@
 ;; Author: Tyler Dodge (tyler@tdodge.consulting)
 ;; Version: 0.1
 ;; Keywords: convenience
-;; Package-Requires: ((emacs "28.1") (uuid "0.0.3") (deferred "0.5.1") (s "1.12.0") (dash "2.19.1"))
+;; Package-Requires: ((emacs "27.1") (uuid "0.0.3") (deferred "0.5.1") (s "1.12.0") (dash "2.19.1"))
 ;; URL: https://github.com/tyler-dodge/org-assistant
 ;; Git-Repository: git://github.com/tyler-dodge/org-assistant.git
 ;; This program is free software; you can redistribute it and/or modify
@@ -58,6 +58,7 @@
 (require 'url)
 (require 'url-vars)
 (require 'auth-source)
+(require 'simple)
 
 (defgroup org-assistant nil "Customization settings for `org-assistant'."
   :group 'org)
@@ -68,6 +69,11 @@ Optionally can be set directly to a string, in which case it will be
 used as the OpenAI key."
   :group 'org-assistant
   :type '(string function))
+
+(defcustom org-assistant-mode-visual-line-enabled t
+  "When non-nil, `visual-line-mode' is enabled with `org-assistant-mode'."
+  :group 'org-assistant
+  :type '(boolean))
 
 (defcustom org-assistant-buffer-name "*org-assistant*"
   "The buffer name used for the `org-assistant' buffer."
@@ -134,7 +140,9 @@ contained in MESSAGE."
 
 (define-minor-mode org-assistant-mode "Mode for org assistant buffers."
   :init-value nil
-  :keymap org-assistant-mode-map)
+  :keymap org-assistant-mode-map
+  (when org-assistant-mode-visual-line-enabled
+    (visual-line-mode org-assistant-mode)))
 
 ;;;###autoload
 (defun org-assistant ()
@@ -349,11 +357,10 @@ Assistant: Branch B Response
                       (-some-->
                           (->> choice
                                (alist-get 'message)
-                               (alist-get 'content))
-                        (string-fill it 80)))))
+                               (alist-get 'content))))))
           (deferred:error it (lambda (error) (list (format "%S" error))))
           (deferred:nextc it (lambda (response)
-                               (babel-response (s-join "" response))))))))
+                               (babel-response (s-join "\n" response))))))))
 
 ;;;###autoload
 (defun org-babel-execute:? (&rest args)
