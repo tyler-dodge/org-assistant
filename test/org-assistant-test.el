@@ -18,6 +18,10 @@
   (with-current-buffer (get-buffer-create " *assistant-test*")
     (erase-buffer)
     (insert "* Question
+#+BEGIN_SRC text
+Should not be included
+#+END_SRC
+
 #+BEGIN_EXAMPLE
 System Prompt
 #+END_EXAMPLE
@@ -37,7 +41,7 @@ B
 B-response
 #+END_EXAMPLE
 
-#+BEGIN_SRC assistant
+#+BEGIN_SRC ?
 C
 #+END_SRC
 
