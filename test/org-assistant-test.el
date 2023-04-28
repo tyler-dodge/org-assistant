@@ -85,6 +85,7 @@ C-response
                     (cons 'assistant "B-response")
                     (cons 'user "C")
                     (cons 'assistant "C-response"))))))
+
 (ert-deftest org-assistant-org-blocks-handles-multiple-branches ()
   "Sanity check to make sure `org-assistant--org-blocks' handles branches correctly."
   (with-current-buffer (get-buffer-create " *assistant-test*")
@@ -97,12 +98,20 @@ System Prompt
 A
 #+END_SRC
 
+#+BEGIN_SRC ignored
+A
+#+END_SRC
+
 #+BEGIN_EXAMPLE
 A-response
 #+END_EXAMPLE
 ** B Branch
 #+BEGIN_SRC assistant
 B
+#+END_SRC
+
+#+BEGIN_SRC text
+Ignore me B
 #+END_SRC
 
 #+BEGIN_EXAMPLE
@@ -112,6 +121,10 @@ B-response
 ** C Branch
 #+BEGIN_SRC assistant
 C
+#+END_SRC
+
+#+BEGIN_SRC text
+Ignore me
 #+END_SRC
 
 #+BEGIN_EXAMPLE
@@ -135,5 +148,63 @@ C-response
                     (cons 'assistant "A-response")
                     (cons 'user "C")
                     (cons 'assistant "C-response"))))))
+
+(ert-deftest org-assistant-handles-noweb-output ()
+  "Sanity check to make sure `org-assistant--org-blocks' handles branches correctly."
+  (with-current-buffer (get-buffer-create " *assistant-test*")
+    (erase-buffer)
+    (insert "* Question
+#+BEGIN_EXAMPLE
+System Prompt
+#+END_EXAMPLE
+
+#+NAME: substitution-A
+#+BEGIN_SRC text
+SUBSTITUTION
+#+END_SRC
+
+#+BEGIN_SRC assistant :noweb yes
+A <<substitution-A>>
+#+END_SRC
+
+#+BEGIN_SRC ignored
+A
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+A-response
+#+END_EXAMPLE
+** B Branch
+#+BEGIN_SRC assistant
+B
+#+END_SRC
+
+#+BEGIN_SRC text
+Ignore me B
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+B-response
+#+END_EXAMPLE
+
+** C Branch
+#+BEGIN_SRC assistant
+C
+#+END_SRC
+
+#+BEGIN_SRC text
+Ignore me
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+C-response
+#+END_EXAMPLE
+")
+    (goto-char (point-min))
+    (search-forward "<<substitution-A>>")
+    (should (equal (org-assistant--org-blocks t)
+                   (list
+                    '(system . "System Prompt")
+                    '(user . "A SUBSTITUTION"))))))
 
 (provide 'org-assistant-test)

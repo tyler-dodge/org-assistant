@@ -431,7 +431,7 @@ conversation."
                            (forward-line 1)
                            (cons message-type
                                  (string-trim
-                                  (if noweb
+                                  (if (and noweb (eq message-type 'user))
                                       (org-babel-expand-noweb-references)
                                       (buffer-substring-no-properties
                                        (point)
