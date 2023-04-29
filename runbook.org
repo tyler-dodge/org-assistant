@@ -27,7 +27,7 @@
     set -o pipefail
     set -o nounset
     cd {{project_root}}
-    nix-build nix/targets.nix -A test.emacs_27_1 --show-trace
+    nix-build -A test.emacs_27_1
 
 #+END_SRC
 
@@ -37,7 +37,7 @@
     set -o pipefail
     set -o nounset
     cd {{project_root}}
-    nix-build nix/targets.nix -A test.emacs_27_2
+    nix-build -A test.emacs_27_2
 
 #+END_SRC
 
@@ -47,7 +47,7 @@
     set -o pipefail
     set -o nounset
     cd {{project_root}}
-    nix-build nix/targets.nix -A test.emacs_28_1
+    nix-build -A test.emacs_28_1
 
 #+END_SRC
 
@@ -57,6 +57,6 @@
     set -o pipefail
     set -o nounset
     cd {{project_root}}
-    nix-build nix/targets.nix -A package_lint.emacs_28_1
+    nix-build -A package_lint.emacs_28_1
 
 #+END_SRC
