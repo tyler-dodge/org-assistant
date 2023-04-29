@@ -1,7 +1,7 @@
 { exec, name, emacs, targets }:
 let
   pkgs = import <nixpkgs> {};
-  link_step = (with pkgs.lib.strings; concatMapStrings (target: "cp ${target.file} ${target.name}") targets);
+  link_step = (with pkgs.lib.strings; concatMapStringsSep "\n" (target: "cp ${target.file} ${target.name}") targets);
   install_step = (with pkgs.lib.strings; concatMapStringsSep "\n" (target: ''(package-install-file "${target.name}")'') targets);
   emacs_start = pkgs.writeText "run-test.el" (''
 (require 'package)
