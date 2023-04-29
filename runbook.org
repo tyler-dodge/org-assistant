@@ -27,7 +27,7 @@
     set -o pipefail
     set -o nounset
     cd {{project_root}}
-    nix-build nix/emacs-28.1.nix
+    nix-build nix/emacs-28-test.nix
 
 #+END_SRC
 
@@ -37,6 +37,6 @@
     set -o pipefail
     set -o nounset
     cd {{project_root}}
-    nix-build nix/package-lint.nix
+    nix-build nix/emacs-28-package-lint.nix
 
 #+END_SRC
