@@ -27,7 +27,7 @@
     set -o pipefail
     set -o nounset
     cd {{project_root}}
-    nix-build nix/targets.nix -A test.emacs_27_1
+    nix-build nix/targets.nix -A test.emacs_27_1 --show-trace
 
 #+END_SRC
 
