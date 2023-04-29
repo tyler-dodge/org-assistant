@@ -1,4 +1,4 @@
-{ emacsWithPackages, name, el_target, el_name }:
+{ emacsWithPackages, name, targets }:
 let
   pkgs = import <nixpkgs> {};
   emacs_packages = (epkgs: with epkgs; [
@@ -7,8 +7,7 @@ let
   ]);
   emacs = import ./environment.nix {
     inherit name;
-    inherit el_target;
-    inherit el_name;
+    inherit targets;
     emacs = emacsWithPackages emacs_packages;
     exec = ./run-test.sh;
   };

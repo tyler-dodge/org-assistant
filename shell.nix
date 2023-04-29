@@ -1,7 +1,9 @@
 { pkgs ? import <nixpkgs> {} }:
 
-pkgs.mkShell {
+let
+  versions = import ./nix/lib/versions.nix;
+in pkgs.mkShell {
   packages = [
-    (import ./nix/versions/emacs-28.1.nix (epkgs: []) (epkgs: []))
+    (versions.emacs_28_1 (epkgs: []) (epkgs: []))
   ];
 }

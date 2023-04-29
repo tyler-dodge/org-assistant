@@ -8,25 +8,12 @@ function buildPhase() {
     mkdir home
     export HOME=home/
     ${emacs}/bin/emacs -q --version
+    source $build_targets
     wget -O melpazoid.el https://raw.githubusercontent.com/riscy/melpazoid/master/melpazoid/melpazoid.el
-    ln -s "$el_target" "${el_name}"
     ${emacs}/bin/emacs -q -batch \
-            --eval "(require 'package)" \
-            --eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
-            --eval "(package-initialize)" \
-            --eval "(package-refresh-contents)" \
-            --eval "(package-install-file \"${el_name}\")" \
+            --load "${emacs_start}" \
             --eval "(package-install-file \"melpazoid.el\")" \
-            -l package-lint \
-            --file "${el_name}" \
-            --eval "(message \"[NOT RESPONSIBLE FOR WARNINGS PRIOR TO THIS POINT]\")" \
-            --eval "(checkdoc-eval-current-buffer)" \
-            --eval "(with-current-buffer \"*Style Warnings*\" (message \"%s\" (buffer-string)))" \
-            --eval "(package-lint-current-buffer)" \
-            --eval "(byte-compile-file \"${el_name}\")" \
-            --eval "(require 'melpazoid)" \
-            --eval "(melpazoid-check-experimentals)" \
-            --eval "(with-current-buffer \"*Package-Lint*\" (message \"%s\" (buffer-string)))" | tee $out
+            --load "${run_package_lint}" | tee $out
     STATUS="${PIPESTATUS[0]}"
     if [ $STATUS -gt 0 ]
     then

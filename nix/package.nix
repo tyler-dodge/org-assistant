@@ -1,4 +1,7 @@
 {
-  el_name = "org-assistant.el";
-  el_target = ../org-assistant.el;
+  name = "org-assistant";
+  targets = [{
+      name = "org-assistant.el";
+      file = ../org-assistant.el;
+    }];
 }

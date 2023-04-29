@@ -257,6 +257,7 @@ later substituted by `org-assistant'."
 (defun org-babel-execute:assistant (_ params)
   "Execute an `org-assistant' in an org-babel context.
 
+PARAMS is used to enable noweb mode.
 This is intended to be called via org babel in a src block with Ctrl-C
 Ctrl-C like:
 
@@ -373,6 +374,8 @@ ARGS is routed as is."
 (defun org-assistant--org-blocks (noweb)
   "Return a list of the blocks between point and the top heading of the tree.
 
+When NOWEB is non-nil, expand the blocks with
+`org-babel-expand-noweb-references'.
 Only blocks that are within the top level section of each heading will
 be included, so subheadings can represent multiple paths of the
 conversation."
