@@ -21,13 +21,33 @@
 #+RESULTS:
 : exited abnormally with code 1
 
+* Test 27.1                                                             :PTY:
+#+BEGIN_SRC compile-queue
+    set -o errexit
+    set -o pipefail
+    set -o nounset
+    cd {{project_root}}
+    nix-build nix/emacs-27.1-test.nix
+
+#+END_SRC
+
+* Test 27.2                                                             :PTY:
+#+BEGIN_SRC compile-queue
+    set -o errexit
+    set -o pipefail
+    set -o nounset
+    cd {{project_root}}
+    nix-build nix/emacs-27.2-test.nix
+
+#+END_SRC
+
 * Test 28.1                                                             :PTY:
 #+BEGIN_SRC compile-queue
     set -o errexit
     set -o pipefail
     set -o nounset
     cd {{project_root}}
-    nix-build nix/emacs-28-test.nix
+    nix-build nix/emacs-28.1-test.nix
 
 #+END_SRC
 
@@ -37,6 +57,6 @@
     set -o pipefail
     set -o nounset
     cd {{project_root}}
-    nix-build nix/emacs-28-package-lint.nix
+    nix-build nix/emacs-28.1-package-lint.nix
 
 #+END_SRC
