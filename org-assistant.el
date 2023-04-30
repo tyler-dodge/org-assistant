@@ -22,19 +22,28 @@
 ;;;
 ;;;
 ;;; Commentary:
-;; org-assistant provides support for accessing chat APIs such as ChatGPT in the context of an org
-;; notebook.
-;; It provides a function named org-assistant that serves as entrypoint for displaying an org assistant buffer.
-;; Also, it can be used in any org file by using a src block like #+BEGIN_SRC assistant or #+BEGIN_SRC ?.
+;; org-assistant provides support for accessing chat APIs such as
+;; ChatGPT in the context of an org notebook.
 ;;
-;; The API Key is looked up via org-assistant-auth-function, which has meen tested using the MacOS Keychain.
-;; Alternatively, org-assistant-auth-function can be a string and directly set to your API key.
+;; It provides a function named org-assistant that serves as
+;; entrypoint for displaying an org assistant buffer.  Also, it can be
+;; used in any org file by using a src block like #+BEGIN_SRC
+;; assistant or #+BEGIN_SRC ?.
 ;;
-;; org-assistant uses the org tree in order to generate the message list whenever sending information to the chat endpoint.
-;; It will only use messages from the branch of the tree that the block that initiated the request is in.  It does not include
-;; example blocks or source blocks that appear later in the org buffer than the initiating block.
-;; Example blocks are treated as being responses from the assistant by default if they occur after user messages.
-;; If the example block is before any user source block, they are treated as system messages to the assistant instead.
+;; The API Key is looked up via org-assistant-auth-function, which has
+;; meen tested using the MacOS Keychain.  Alternatively,
+;; org-assistant-auth-function can be a string and directly set to
+;; your API key.
+;;
+;; org-assistant uses the org tree in order to generate the message
+;; list whenever sending information to the chat endpoint.  It will
+;; only use messages from the branch of the tree that the block that
+;; initiated the request is in.  It does not include example blocks or
+;; source blocks that appear later in the org buffer than the
+;; initiating block.  Example blocks are treated as being responses
+;; from the assistant by default if they occur after user messages.
+;; If the example block is before any user source block, they are
+;; treated as system messages to the assistant instead.
 ;;
 ;; ### Example
 ;; <example>
@@ -222,8 +231,7 @@ later substituted by `org-assistant'."
   (let ((buffer-var (make-symbol "buffer"))
         (insert-prompt-var (make-symbol "insert-prompt"))
         (replacement-var (make-symbol "replacement")))
-    `(progn
-       (let* ((,buffer-var (current-buffer))
+    `(let* ((,buffer-var (current-buffer))
               (,replacement-var (uuid-string)))
          (cl-flet ((babel-response (message)
                      (run-at-time
@@ -251,7 +259,7 @@ later substituted by `org-assistant'."
                                      (cl-loop for window in (get-buffer-window-list (current-buffer))
                                               do (set-window-point window it))))))))))
            ,@prog)
-         ,replacement-var))))
+         ,replacement-var)))
 
 ;;;###autoload
 (defun org-babel-execute:assistant (_ params)
@@ -419,30 +427,29 @@ conversation."
                                       (rx (or (regexp org-assistant--begin-src-regexp)
                                               (regexp org-assistant--begin-example-regexp)))
                                       (thing-at-point 'line t))))
-               collect (progn
-                         (let* ((match-start (match-beginning 0))
-                                (match-end (match-end 0))
-                                (message-type
-                                 (progn
-                                   (goto-char match-start)
-                                   (let ((line (thing-at-point 'line t)))
-                                     (if (s-contains-p "BEGIN_EXAMPLE" line)
-                                         (if (save-excursion
-                                               (forward-line -1)
-                                               (s-contains-p "#+SYSTEM" (thing-at-point 'line t)))
-                                             'system
-                                           'assistant) 'user)))))
-                           (forward-line 1)
-                           (cons message-type
-                                 (string-trim
-                                  (org-unescape-code-in-string
-                                   (if (and noweb (eq message-type 'user))
-                                       (org-babel-expand-noweb-references)
-                                     (buffer-substring-no-properties
-                                      (point)
-                                      (save-excursion (goto-char match-end)
-                                                      (forward-line 0)
-                                                      (point)))))))))))))))
+               collect (let* ((match-start (match-beginning 0))
+                              (match-end (match-end 0))
+                              (message-type
+                               (progn
+                                 (goto-char match-start)
+                                 (let ((line (thing-at-point 'line t)))
+                                   (if (s-contains-p "BEGIN_EXAMPLE" line)
+                                       (if (save-excursion
+                                             (forward-line -1)
+                                             (s-contains-p "#+SYSTEM" (thing-at-point 'line t)))
+                                           'system
+                                         'assistant) 'user)))))
+                         (forward-line 1)
+                         (cons message-type
+                               (string-trim
+                                (org-unescape-code-in-string
+                                 (if (and noweb (eq message-type 'user))
+                                     (org-babel-expand-noweb-references)
+                                   (buffer-substring-no-properties
+                                    (point)
+                                    (save-excursion (goto-char match-end)
+                                                    (forward-line 0)
+                                                    (point))))))))))))))
        collect
        (if has-prompt
            block
