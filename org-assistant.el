@@ -234,7 +234,10 @@ the json response from the endpoint."
                                         (buffer-substring (point) (point-max))
                                         'utf-8)))
                              (condition-case _
-                                 (json-read-from-string text)
+                                 (--doto (json-read-from-string text)
+                                   (-let [(&alist 'error (&alist 'message error-message 'type error-type)) it]
+                                     (when error-type
+                                       (error "%s: %s" error-type error-message))))
                                (json-readtable-error (error "Unexpected output from server.
 %s" text))))
                            (error "Response was unexpectedly nil %S" (buffer-string))))))))
