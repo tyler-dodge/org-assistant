@@ -3,8 +3,8 @@ let
   lib = pkgs.fetchFromGitHub {
     owner = "tyler-dodge";
     repo = "emacs-package-nix-build";
-    rev = "eb109da5900436c7b2ec2a61818a0fc7e2fdce8a";
-    hash = "sha256-Iq9VMffjSumE7imFMvHqb0Ydjrfh25fQDD+COBzdt68=";
+    rev = "5f1ba3834d6f77464f6b5c5fff86750f3e04029e";
+    hash = "sha256-Uk2Cl8+xPwDidiUkYiuxlY9Bi+rCmnRsv8k5DcMe56Y=";
   };
 in import lib {
   package = {

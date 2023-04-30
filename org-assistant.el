@@ -3,7 +3,7 @@
 ;; Author: Tyler Dodge (tyler@tdodge.consulting)
 ;; Version: 0.1
 ;; Keywords: convenience
-;; Package-Requires: ((emacs "27.1") (uuid "0.0.3") (deferred "0.5.1") (s "1.12.0") (dash "2.19.1"))
+;; Package-Requires: ((emacs "27.1") (uuidgen "1.2") (deferred "0.5.1") (s "1.12.0") (dash "2.19.1"))
 ;; URL: https://github.com/tyler-dodge/org-assistant
 ;; Git-Repository: git://github.com/tyler-dodge/org-assistant.git
 ;; This program is free software; you can redistribute it and/or modify
@@ -62,7 +62,7 @@
 (require 'org)
 (require 'deferred)
 (require 's)
-(require 'uuid)
+(require 'uuidgen)
 (require 'dash)
 (require 'url)
 (require 'ob-core)
@@ -232,7 +232,7 @@ later substituted by `org-assistant'."
         (insert-prompt-var (make-symbol "insert-prompt"))
         (replacement-var (make-symbol "replacement")))
     `(let* ((,buffer-var (current-buffer))
-              (,replacement-var (uuid-string)))
+              (,replacement-var (uuidgen-4)))
          (cl-flet ((babel-response (message)
                      (run-at-time
                       nil nil
