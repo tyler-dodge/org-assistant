@@ -69,6 +69,7 @@
 (require 'url-vars)
 (require 'auth-source)
 (require 'simple)
+(require 'evil nil t)
 
 (defgroup org-assistant nil "Customization settings for `org-assistant'."
   :group 'org)
@@ -90,6 +91,19 @@ used as the OpenAI key."
   :group 'org-assistant
   :type '(string))
 
+(defcustom org-assistant-mode-line-format
+  `("***"
+    mode-line-buffer-identification "   " mode-line-position
+    ,(when (boundp 'evil-mode-line-tag) 'evil-mode-line-tag)
+    "  " mode-line-modes mode-line-misc-info
+    (:eval (concat "[" (s-join "," (--map (substring it 0 4) org-assistant--inflight-request)) "]") )
+    mode-line-end-spaces)
+  "The `mode-line-format' used by the `org-assistant' buffer.
+
+Set to nil to use `mode-line-format' instead."
+  :group 'org-assistant
+  :type '(list))
+
 (defcustom org-assistant-model "gpt-3.5-turbo"
   "The model used for the assistant."
   :group 'org-assistant
@@ -99,6 +113,11 @@ used as the OpenAI key."
   "The endpoint used for the assistant."
   :group 'org-assistant
   :type '(string))
+
+(defcustom org-assistant-parallelism 1
+  "The max inflight requests to send with `org-assistant' at once."
+  :group 'org-assistant
+  :type '(number))
 
 (defvar org-babel-default-header-args:assistant
   (list (cons :results "raw"))
@@ -152,13 +171,24 @@ contained in MESSAGE."
   :init-value nil
   :keymap org-assistant-mode-map
   (when org-assistant-mode-visual-line-enabled
-    (visual-line-mode org-assistant-mode)))
+    (visual-line-mode org-assistant-mode))
+  (when org-assistant-mode-line-format
+    (setq-local mode-line-format org-assistant-mode-line-format)))
 
 (defvar org-assistant--request-queue nil
-  "Request queue used by org-assistant to limit parallelism of requests.")
+  "Request queue used by `org-assistant' to limit parallelism of requests.")
+
+(defvar org-assistant--inflight-request nil
+  "Tracks inflight requests for `org-assistant'.")
 
 (defvar org-assistant--active-request nil
-  "Tracks inflight requests for org-assistant.")
+  "Tracks inflight requests that are active for `org-assistant'.")
+
+(defvar org-assistant--request-queue-active-p nil
+  "Tracks when the request queue is active.
+
+This is used to avoid automatically adjusting the
+prompt when multiple are inflight.")
 
 ;;;###autoload
 (defun org-assistant ()
@@ -182,9 +212,10 @@ where openai-key is an application password with the name openai-key."
     (aref it 2)
     (aref it 0)))
 
-(defun org-assistant-execute (blocks)
+(defun org-assistant-execute (request-id blocks)
   "Sends the list of BLOCKS t' the `org-assistant-endpoint' to get a response.
 
+REQUEST-ID is used to track the execution over time.
 BLOCKS is a list of cons cells: where the car of the cell
 is either `user' or `assistant'.  The cdr of the cell is the message
 corresponding to the sender.
@@ -193,7 +224,7 @@ The list of BLOCKS should be in chronological order, with the first
 being the earliest message.  Returns a deferred object representing
 the json response from the endpoint."
   (deferred:$
-   (org-assistant--queue-request blocks)
+   (org-assistant--queue-request request-id blocks)
    (deferred:nextc it (lambda (buffer)
                         (with-current-buffer buffer
                           (goto-char (point-min))
@@ -207,6 +238,10 @@ the json response from the endpoint."
                                (json-readtable-error (error "Unexpected output from server.
 %s" text))))
                            (error "Response was unexpectedly nil %S" (buffer-string))))))))
+
+(defvar org-assistant--request-id nil
+  "Request ID for `org-assistant'.
+Set specially by the macro `org-assistant-org-babel-async-response'.")
 
 ;;;###autoload
 (defmacro org-assistant-org-babel-async-response (&rest prog)
@@ -224,22 +259,29 @@ later substituted by `org-assistant'."
         (insert-prompt-var (make-symbol "insert-prompt"))
         (replacement-var (make-symbol "replacement")))
     `(let* ((,buffer-var (current-buffer))
-              (,replacement-var (uuidgen-4)))
+            (,replacement-var (uuidgen-4))
+            (org-assistant--request-id ,replacement-var))
          (cl-flet ((babel-response (message)
                      (run-at-time
                       nil nil
                       (lambda ()
-                        (let ((inhibit-message t))
+                        (let ((inhibit-message t)
+                              (,replacement-var ,replacement-var))
+                          (setq org-assistant--inflight-request
+                                (--filter (not (string= it ,replacement-var)) org-assistant--inflight-request))
                           (with-current-buffer ,buffer-var
                             (-some-->
                                 (save-mark-and-excursion
                                   (goto-char (point-min))
                                   (when (re-search-forward (rx (literal ,replacement-var))
                                                            nil t)
-                                    (let ((,insert-prompt-var (not
-                                                               (save-match-data
-                                                                 (save-mark-and-excursion
-                                                                   (re-search-forward org-assistant--begin-src-regexp nil t))))))
+                                    (let ((,insert-prompt-var
+                                           (and
+                                            (not org-assistant--request-queue-active-p)
+                                            (not
+                                             (save-match-data
+                                               (save-mark-and-excursion
+                                                 (re-search-forward org-assistant--begin-src-regexp nil t)))))))
                                       (save-excursion
                                         (replace-match (format "#+BEGIN_EXAMPLE
 %s
@@ -247,10 +289,18 @@ later substituted by `org-assistant'."
                                       (when ,insert-prompt-var (re-search-backward org-assistant--begin-src-regexp)
                                             (forward-line 1)
                                             (point)))))
-                              (progn (goto-char it)
-                                     (cl-loop for window in (get-buffer-window-list (current-buffer))
-                                              do (set-window-point window it))))))))))
+                              (progn
+                                (unless org-assistant--request-queue-active-p
+                                  (goto-char it)
+                                  (cl-loop for window in (get-buffer-window-list (current-buffer))
+                                           do (set-window-point window it)))))))
+                        (unless (or org-assistant--request-queue
+                                    org-assistant--inflight-request)
+                          (setq org-assistant--request-queue-active-p nil))))))
            ,@prog)
+         (when (buffer-live-p ,buffer-var) (with-current-buffer ,buffer-var (force-mode-line-update)))
+         (with-current-buffer ,buffer-var
+           (push ,replacement-var org-assistant--inflight-request))
          ,replacement-var)))
 
 ;;;###autoload
@@ -347,10 +397,12 @@ Assistant: Response
 User: Branch B
 Assistant: Branch B Response
 </example>"
+  (unless (> org-assistant-parallelism 0)
+    (user-error "`org-assistant-parallelism' set to an invalid value.  Must be greater than 0"))
   (let ((blocks (org-assistant--org-blocks (org-babel-noweb-p params :eval))))
         (org-assistant-org-babel-async-response
          (deferred:$
-          (org-assistant-execute blocks)
+          (org-assistant-execute org-assistant--request-id blocks)
           (deferred:nextc
            it
            (lambda (response)
@@ -462,7 +514,12 @@ conversation."
   (interactive)
   (org-assistant-with-initial-message (concat (thing-at-point 'defun t) "\nWrite a concise docstring for me")))
 
-(defun org-assistant--queue-request (blocks)
+(defun org-assistant--queue-request (request-id blocks)
+  "Execute or queue the `org-assistant' request for BLOCKS.
+
+REQUEST-ID is used to keep track of the request for later.
+Return a deferred object representing the completion of the
+request."
   (let* ((promise (deferred:new))
         (job (lambda ()
            (let ((url-request-method "POST")
@@ -487,25 +544,44 @@ conversation."
               (deferred:nextc it (lambda (result)
                                    (deferred:callback-post promise result)
                                    t)))))))
-    (if org-assistant--active-request
-        (setq org-assistant--request-queue (append org-assistant--request-queue (list job) nil))
+    (if (>= (length org-assistant--active-request) org-assistant-parallelism)
+        (setq org-assistant--request-queue (append org-assistant--request-queue (list (cons request-id job)) nil))
       (org-assistant--queue-request-execute job))
     promise))
 
+(defun org-assistant-clear-request-queue ()
+  "Reset `org-assistant' request queue to orginal state."
+  (interactive)
+  (setq org-assistant--inflight-request nil)
+  (setq org-assistant--request-queue-active-p nil)
+  (setq org-assistant--active-request nil)
+  (setq org-assistant--request-queue nil))
+
 (defun org-assistant--queue-request-execute (job)
-  (setq org-assistant--active-request
-        (deferred:$
-         (deferred:next (lambda () (funcall job)))
-         (deferred:error it (lambda (&rest arg)
-                              (message "%S" arg)
-                              "Suppressed since logged elsewhere"))
-         (deferred:nextc
-          it
-          (lambda (result)
-            (prog1 result
-              (setq org-assistant--active-request nil)
-              (-some--> (pop org-assistant--request-queue)
-                (org-assistant--queue-request-execute it))))))))
+  "Execute JOB for `org-assistant'.
+
+JOB may be delayed based on `org-assistant-parallelism'.
+
+Return nil."
+  (prog1 nil
+    (deferred:$
+     (deferred:next (lambda () (funcall job)))
+     (deferred:error it (lambda (&rest arg)
+                          (message "%S" arg)
+                          "Suppressed since logged elsewhere"))
+     (deferred:nextc
+      it
+      (lambda (result)
+        (prog1 result
+          org-assistant--inflight-request
+          org-assistant--request-queue-active-p
+          (-some--> (pop org-assistant--request-queue)
+            (org-assistant--queue-request-execute (cdr it))))))
+     (deferred:nextc it (lambda (&rest arg) arg)))
+      (when (or org-assistant--inflight-request
+                org-assistant--request-queue)
+        (setq org-assistant--request-queue-active-p t))))
+
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
