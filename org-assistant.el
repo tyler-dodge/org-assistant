@@ -195,7 +195,6 @@ the json response from the endpoint."
   (deferred:$
    (org-assistant--queue-request blocks)
    (deferred:nextc it (lambda (buffer)
-                        (message "YOYO")
                         (with-current-buffer buffer
                           (goto-char (point-min))
                           (re-search-forward (rx line-start eol) nil t)
