@@ -154,6 +154,12 @@ contained in MESSAGE."
   (when org-assistant-mode-visual-line-enabled
     (visual-line-mode org-assistant-mode)))
 
+(defvar org-assistant--request-queue nil
+  "Request queue used by org-assistant to limit parallelism of requests.")
+
+(defvar org-assistant--active-request nil
+  "Tracks inflight requests for org-assistant.")
+
 ;;;###autoload
 (defun org-assistant ()
   "Prompt the user for an initial prompt for the assistant.
@@ -187,33 +193,20 @@ The list of BLOCKS should be in chronological order, with the first
 being the earliest message.  Returns a deferred object representing
 the json response from the endpoint."
   (deferred:$
-   (let ((url-request-method "POST")
-         (url-request-extra-headers
-          `(("Authorization" . ,(concat "Bearer "
-                                        (if (stringp org-assistant-auth-function)
-                                            org-assistant-auth-function
-                                          (funcall org-assistant-auth-function))))
-            ("Content-Type" . "application/json")))
-        (url-request-data (let ((json-object-type 'alist)
-                                (json-key-type 'string)
-                                (json-array-type 'vector))
-                     (json-encode
-                      `(("model" . ,org-assistant-model)
-                        ("messages" . ,(->> blocks
-                                            (--map (list
-                                                    (cons "content" (encode-coding-string (cdr it) 'utf-8))
-                                                    (cons "role" (symbol-name (car it)))))
-                                            (vconcat))))))))
-     (deferred:url-retrieve org-assistant-endpoint))
+   (org-assistant--queue-request blocks)
    (deferred:nextc it (lambda (buffer)
+                        (message "YOYO")
                         (with-current-buffer buffer
                           (goto-char (point-min))
                           (re-search-forward (rx line-start eol) nil t)
                           (or
-                           (json-read-from-string
-                            (decode-coding-string
-                              (buffer-substring (point) (point-max))
-                             'utf-8))
+                           (let ((text (decode-coding-string
+                                        (buffer-substring (point) (point-max))
+                                        'utf-8)))
+                             (condition-case _
+                                 (json-read-from-string text)
+                               (json-readtable-error (error "Unexpected output from server.
+%s" text))))
                            (error "Response was unexpectedly nil %S" (buffer-string))))))))
 
 ;;;###autoload
@@ -469,6 +462,51 @@ conversation."
   "Ask the assistant to generate a docstring for the function at point."
   (interactive)
   (org-assistant-with-initial-message (concat (thing-at-point 'defun t) "\nWrite a concise docstring for me")))
+
+(defun org-assistant--queue-request (blocks)
+  (let* ((promise (deferred:new))
+        (job (lambda ()
+           (let ((url-request-method "POST")
+                 (url-request-extra-headers
+                  `(("Authorization" . ,(concat "Bearer "
+                                                (if (stringp org-assistant-auth-function)
+                                                    org-assistant-auth-function
+                                                  (funcall org-assistant-auth-function))))
+                    ("Content-Type" . "application/json")))
+                 (url-request-data (let ((json-object-type 'alist)
+                                         (json-key-type 'string)
+                                         (json-array-type 'vector))
+                                     (json-encode
+                                      `(("model" . ,org-assistant-model)
+                                        ("messages" . ,(->> blocks
+                                                            (--map (list
+                                                                    (cons "content" (encode-coding-string (cdr it) 'utf-8))
+                                                                    (cons "role" (symbol-name (car it)))))
+                                                            (vconcat))))))))
+             (deferred:$
+              (deferred:url-retrieve org-assistant-endpoint)
+              (deferred:nextc it (lambda (result)
+                                   (deferred:callback-post promise result)
+                                   t)))))))
+    (if org-assistant--active-request
+        (setq org-assistant--request-queue (append org-assistant--request-queue (list job) nil))
+      (org-assistant--queue-request-execute job))
+    promise))
+
+(defun org-assistant--queue-request-execute (job)
+  (setq org-assistant--active-request
+        (deferred:$
+         (deferred:next (lambda () (funcall job)))
+         (deferred:error it (lambda (&rest arg)
+                              (message "%S" arg)
+                              "Suppressed since logged elsewhere"))
+         (deferred:nextc
+          it
+          (lambda (result)
+            (prog1 result
+              (setq org-assistant--active-request nil)
+              (-some--> (pop org-assistant--request-queue)
+                (org-assistant--queue-request-execute it))))))))
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
