@@ -237,22 +237,16 @@ where openai-key is an application password with the name openai-key."
    deferred
    (deferred:nextc
     it
-    (lambda (buffer)
-      (with-current-buffer buffer
-        (goto-char (point-min))
-        (re-search-forward (rx line-start eol) nil t)
-        (or
-         (let ((text (decode-coding-string
-                      (buffer-substring (point) (point-max))
-                      'utf-8)))
-           (condition-case _
-               (--doto (org-assistant--json-decode text)
-                 (-let [(&alist 'error (&alist 'message error-message 'type error-type)) it]
-                   (when error-type
-                     (error "%s: %s" error-type error-message))))
-             (json-readtable-error (error "Unexpected output from server.
-%s" text))))
-         (error "Response was unexpectedly nil %S" (buffer-string))))))))
+    (lambda (text)
+      (or
+       (condition-case _
+           (--doto (org-assistant--json-decode text)
+             (-let [(&alist 'error (&alist 'message error-message 'type error-type)) it]
+               (when error-type
+                 (error "%s: %s" error-type error-message))))
+         (json-readtable-error (error "Unexpected output from server.
+%s" text)))
+         (error "Response was unexpectedly nil %S" (buffer-string)))))))
 
 (defvar org-assistant--request-id nil
   "Request ID for `org-assistant'.
@@ -362,10 +356,20 @@ ARGS is expected to be a plist with the following keys:
     (or url (error "Url must be set %S" args))
     (or method (error "Method must be set %S" args))
     `(lambda ()
-       (let ((url-request-extra-headers (or ,headers (org-assistant--default-headers)))
-             (url-request-method ,method)
-             (url-request-data (-some-> ,json org-assistant--json-encode)))
-         (deferred:url-retrieve ,url)))))
+       (deferred:process-shell
+        (s-join " "
+                (->>
+                 (append
+                  (list "curl" (org-assistant-chat-endpoint))
+                  (cl-loop for (header . value) in (or ,headers (org-assistant--default-headers))
+                           append (list "-H" (concat "'" header ":" value "'")))
+                  (list "-X" (shell-quote-argument ,method))
+                  (-some--> ,json
+                    (let ((file (make-temp-file "json")))
+                      (with-temp-file file
+                        (insert (org-assistant--json-encode it)))
+                      (list "--json" (concat "@" file))))
+                  nil)))))))
 
 (defmacro org-assistant--join-endpoint (domain path)
   "Validate and return joined DOMAIN and PATH."
@@ -685,7 +689,7 @@ request."
                                   concat
                                   (concat (symbol-name name)
                                           ": "
-                                          (encode-coding-string message 'utf-8))))))))
+                                          message)))))))
 
 (defun org-assistant--default-headers ()
   "Return the headers used by the `org-assistant' endpoint."
@@ -693,7 +697,7 @@ request."
                                 (if (stringp org-assistant-auth-function)
                                     org-assistant-auth-function
                                   (funcall org-assistant-auth-function))))
-    ("Content-Type" . "application/json")))
+    ("Content-Type" . "application/json; charset=utf-8")))
 
 (defun org-assistant--queue-chat-request (request-id blocks)
   "Execute or queue the `org-assistant' request for BLOCKS.
@@ -709,7 +713,7 @@ request."
     :json `(("model" . ,org-assistant-model)
             ("messages" .
              ,(->> blocks
-                   (--map `(("content" . ,(encode-coding-string (cdr it) 'utf-8))
+                   (--map `(("content" . ,(cdr it))
                             ("role" . ,(symbol-name (car it)))))
                    (vconcat)))))))
 
