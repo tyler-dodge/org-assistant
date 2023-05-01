@@ -7,6 +7,8 @@
 org-assistant provides support for accessing chat APIs such as
 ChatGPT in the context of an org notebook.
 
+![org-assistant-usage](screenshot/example.gif)
+
 ## Installation
 
 Org-assistant is available on [MELPA](http://melpa.org/#/org-assistant)
