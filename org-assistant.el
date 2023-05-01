@@ -63,6 +63,9 @@
 ;; - If the example block is before any user source block, they are
 ;; treated as system messages to the assistant instead.
 ;;
+;; See [org-babel-execute:assistant](https://github.com/tyler-dodge/org-assistant#org-babel-executeassistant)
+;; for more details.
+;;
 ;; ### Example
 ;; <example>
 ;; * Chat User Question
