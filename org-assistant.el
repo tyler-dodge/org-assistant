@@ -365,7 +365,7 @@ ARGS is expected to be a plist with the following keys:
     (or method (error "Method must be set %S" args))
     (let ((request-id-var (make-symbol "request-id")))
       `(lambda ()
-         (let* ((promise (deferred:new)) 
+         (let* ((promise (deferred:new))
                 (,request-id-var ,request-id)
                 (shell-buffer (generate-new-buffer " *org-assistant-request*"))
                 (callback
@@ -390,7 +390,7 @@ ARGS is expected to be a plist with the following keys:
                      (puthash ,request-id-var process org-assistant--request-processes-ht)
                      (set-process-sentinel
                       process
-                      (lambda (process status)
+                      (lambda (_ status)
                         (run-at-time
                          nil nil
                          (lambda ()
@@ -710,7 +710,7 @@ request."
                (deferred:error it (lambda (error)
                                     (deferred:errorback-post promise error)
                                     "SUPPRESSED")))))))
-    (if (>= (ht-size org-assistant--request-processes-ht) org-assistant-parallelism)
+    (if (>= (hash-table-count org-assistant--request-processes-ht) org-assistant-parallelism)
         (setq org-assistant--request-queue
               (append org-assistant--request-queue
                       (list (cons request-id job-with-promise)) nil))
@@ -795,7 +795,7 @@ Return nil."
   (prog1 nil
     (deferred:$
      (deferred:next (lambda (&rest _) (funcall job)))
-     (deferred:error it (lambda (error)
+     (deferred:error it (lambda (_) ;; logged elsewhere
                           "SUPPRESSED"))
      (deferred:nextc
       it
@@ -827,6 +827,7 @@ Return nil."
     (json-read-from-string json)))
 
 (defun org-assistant-cancel-block-at-point ()
+  "Cancel the `org-assistant' execution at point."
   (interactive)
   (save-match-data
     (save-excursion
@@ -841,16 +842,18 @@ Return nil."
           (cl-flet ((uuid-at-point ()
                       (when (looking-at (rx line-start (* whitespace) (+ (any alphanumeric "-")) (* whitespace) line-end))
                         (string-trim (match-string 0)))))
-            (while-let ((uuid (uuid-at-point)))
-              (-some-->
-                  (gethash uuid org-assistant--request-processes-ht)
-                (progn
-                  (replace-match "")
-                  (kill-process it)
-                  (remhash uuid org-assistant--request-processes-ht)
-                  (setq org-assistant--inflight-request
-                        (--filter (not (string= it uuid)) org-assistant--inflight-request))
-                  (forward-line 1))))))))))
+            (cl-loop with uuid = nil
+                     while (setq uuid (uuid-at-point))
+                     do
+                     (-some-->
+                         (gethash uuid org-assistant--request-processes-ht)
+                       (progn
+                         (replace-match "")
+                         (kill-process it)
+                         (remhash uuid org-assistant--request-processes-ht)
+                         (setq org-assistant--inflight-request
+                               (--filter (not (string= it uuid)) org-assistant--inflight-request))
+                         (forward-line 1))))))))))
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
