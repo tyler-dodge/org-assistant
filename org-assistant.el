@@ -47,14 +47,18 @@
 ;; </example>
 
 ;;
-;; org-assistant uses the org tree in order to generate the message
-;; list whenever sending information to the chat endpoint.  It will
-;; only use messages from the branch of the tree that the block that
-;; initiated the request is in.  It does not include example blocks or
-;; source blocks that appear later in the org buffer than the
-;; initiating block.  Example blocks are treated as being responses
-;; from the assistant by default if they occur after user messages.
-;; If the example block is before any user source block, they are
+;; ### Conversation Evaluation Rules
+;; - The org tree in order to generate the message
+;; list whenever sending information to the chat endpoint.
+;; - It will only use messages from the branch of the tree that the block that
+;; initiated the request is in.
+;; - It does not include example blocks or source blocks that appear later in
+;; the org buffer than the initiating block.
+;; - noweb support is enabled for all blocks in the conversation based on the
+;; initiating block having the :noweb flag set.
+;; - Example blocks are treated as being responses from the assistant by default
+;; if they occur after user messages.
+;; - If the example block is before any user source block, they are
 ;; treated as system messages to the assistant instead.
 ;;
 ;; ### Example
@@ -471,6 +475,9 @@ ARGS is expected to be a plist with the following keys:
   "Execute an `org-assistant' in an org-babel context.
 
 PARAMS is used to enable noweb mode.
+If :echo is set, return the conversation that would be sent to the endpoint
+instead of evaluating.
+
 If :list-models is set, the `org-assistant-models-endpoint'
 will be called instead.
 
@@ -588,6 +595,14 @@ An image of the GNU mascot
    (t
     (let ((blocks (org-assistant--org-blocks (org-babel-noweb-p params :eval))))
       (cond
+       ((assoc :echo params)
+        (concat
+         "#+BEGIN_EXAMPLE
+"
+         (s-join "\n" (--map (format "%S" it) blocks))
+         "
+#+END_EXAMPLE
+"))
        ((assoc :file params)
         (let ((files (--> (alist-get :file params) (if (listp it) it (list it)))))
           (--each files (when (not (string-suffix-p ".png" it))

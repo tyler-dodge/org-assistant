@@ -1,9 +1,5 @@
-# org-assistant.el
+# org-assistant.el - [![License](https://img.shields.io/badge/license-GPL_3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.txt) [![MELPA](https://melpa.org/packages/org-assistant-badge.svg)](https://melpa.org/#/org-assistant) [![Version](https://img.shields.io/github/v/tag/tyler-dodge/org-assistant)](https://github.com/tyler-dodge/org-assistant/releases)
 ###  Org babel extension for Chat Assistant APIs
-
-[![License](https://img.shields.io/badge/license-GPL_3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
-[![MELPA](https://melpa.org/packages/org-assistant-badge.svg)](https://melpa.org/#/org-assistant)
-[![Version](https://img.shields.io/github/v/tag/tyler-dodge/org-assistant)](https://github.com/tyler-dodge/org-assistant/releases)
 
 
 ---
@@ -33,14 +29,18 @@ your API key.
 ```
 
 
-org-assistant uses the org tree in order to generate the message
-list whenever sending information to the chat endpoint.  It will
-only use messages from the branch of the tree that the block that
-initiated the request is in.  It does not include example blocks or
-source blocks that appear later in the org buffer than the
-initiating block.  Example blocks are treated as being responses
-from the assistant by default if they occur after user messages.
-If the example block is before any user source block, they are
+### Conversation Evaluation Rules
+- The org tree in order to generate the message
+list whenever sending information to the chat endpoint.
+- It will only use messages from the branch of the tree that the block that
+initiated the request is in.
+- It does not include example blocks or source blocks that appear later in
+the org buffer than the initiating block.
+- noweb support is enabled for all blocks in the conversation based on the
+initiating block having the :noweb flag set.
+- Example blocks are treated as being responses from the assistant by default
+if they occur after user messages.
+- If the example block is before any user source block, they are
 treated as system messages to the assistant instead.
 
 ### Example
@@ -104,6 +104,9 @@ Then display a window with the buffer containing the response.
 Execute an ‘org-assistant’ in an org-babel context.
 
 PARAMS is used to enable noweb mode.
+If :echo is set, return the conversation that would be sent to the endpoint
+instead of evaluating.
+
 If :list-models is set, the ‘org-assistant-models-endpoint’
 will be called instead.
 
