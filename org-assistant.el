@@ -47,7 +47,11 @@
 ;; <example>
 ;; (setq org-assistant-auth-function "<YOUR_API_KEY>")
 ;; </example>
-
+;; Calling `org-assistant' interactively will generate an org-assistant buffer for you.
+;; It can be set to a keybinding for quick use like below:
+;; <example>
+;; (global-set-key (kbd "C-x C-o") #'org-assistant)
+;; </example>
 ;;
 ;; ### Conversation Evaluation Rules
 ;; - The org tree is traversed up in order to generate the message
