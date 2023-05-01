@@ -152,7 +152,6 @@ used as the OpenAI key."
     (:eval (concat "[" (s-join "," (--map (substring it 0 4) org-assistant--inflight-request)) "]") )
     mode-line-end-spaces)
   "The `mode-line-format' used by the `org-assistant' buffer.
-
 Set to nil to use `mode-line-format' instead."
   :group 'org-assistant
   :type '(list))

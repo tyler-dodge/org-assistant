@@ -242,7 +242,6 @@ The buffer name used for the 'org-assistant' buffer.
 
 * [org-assistant-mode-line-format](#org-assistant-mode-line-format)<a name="org-assistant-mode-line-format"></a>:
 The 'mode-line-format' used by the 'org-assistant' buffer.
-
 Set to nil to use 'mode-line-format' instead.
 
 * [org-assistant-model](#org-assistant-model)<a name="org-assistant-model"></a>:
