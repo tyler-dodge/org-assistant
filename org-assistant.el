@@ -47,7 +47,7 @@
 ;;
 ;; ### Example
 ;; <example>
-;; * User Question
+;; * Chat User Question
 ;; #+BEGIN_SRC ?
 ;; Hi
 ;; #+END_SRC
@@ -56,6 +56,19 @@
 ;; #+BEGIN_EXAMPLE
 ;; Hello! How can I assist you today?
 ;; #+END_EXAMPLE
+;; </example>
+;;
+;; When the output is set to png file, the image generation APIs are
+;; called instead.
+;; <example>
+;; * Image Generation User Question
+;; #+BEGIN_SRC ? :file sphere.png
+;; Generate a sphere
+;; #+END_SRC
+;; 
+;; AI Response
+;; #+RESULTS:
+;; file:sphere.png
 ;; </example>
 ;;
 ;; ## Comparison With Other AI Packages

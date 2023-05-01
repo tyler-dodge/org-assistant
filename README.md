@@ -35,7 +35,7 @@ treated as system messages to the assistant instead.
 
 ### Example
 ```
-* User Question
+* Chat User Question
 #+BEGIN_SRC ?
 Hi
 #+END_SRC
@@ -44,6 +44,19 @@ AI Response
 #+BEGIN_EXAMPLE
 Hello! How can I assist you today?
 #+END_EXAMPLE
+```
+
+When the output is set to png file, the image generation APIs are
+called instead.
+```
+* Image Generation User Question
+#+BEGIN_SRC ? :file sphere.png
+Generate a sphere
+#+END_SRC
+
+AI Response
+#+RESULTS:
+file:sphere.png
 ```
 
 ## Comparison With Other AI Packages
