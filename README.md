@@ -1,6 +1,6 @@
 # org-assistant.el
 [![License](https://img.shields.io/badge/license-GPL_3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
-[![MELPA](https://melpa.org/packages/org-assistant-badge.svg)](https://melpa.org/#/org-assistant)
+[![MELPA](https://melpa.org/packages/org-assistant-badge.svg)](https://melpa.org/#/org-runbook)
 [![Version](https://img.shields.io/github/v/tag/tyler-dodge/org-assistant)](https://github.com/tyler-dodge/org-assistant/releases)
 
 
@@ -45,6 +45,28 @@ AI Response
 Hello! How can I assist you today?
 #+END_EXAMPLE
 ```
+
+## Comparison With Other AI Packages
+### What's the difference between org-assistant.el and org-ai.el
+    - [org-ai.el](https://github.com/rksm/org-ai) is focused more on runtime interaction with AI
+    - org-assistant.el is focused more on reproducible sessions
+        via org babel
+    - org-assistant.el supports branching conversations 
+    - org-assistant.el is not meant to be used downstream
+         as a library for AI endpoint interactions.
+    - In org-assistant.el, all interaction is async using org-babel, which allows
+        for notebook style prompt development
+    - In [org-ai.el](https://github.com/rksm/org-ai), interaction is synchronous and inline,
+        which is better for in-editor use cases
+    - [org-ai.el](https://github.com/rksm/org-ai) supports a lot of other AI use cases like text to speech
+
+### What's the difference between org-assistant.el and [gptel](https://github.com/karthink/gptel)
+    - Most of the same differences and similarities apply from
+        org-assistant.el and [org-ai.el](https://github.com/rksm/org-ai)
+
+### Feel free to add a pull request detailing the differences if there is a package I missed
+
+
 
 
 
@@ -154,7 +176,7 @@ User: Branch B
 Assistant: Branch B Response
 ```
 
-org-assistant also supporst image generation.
+‘org-assistant’ also supporst image generation.
 If the :file attribute is set, the image API will be used.
 
 The following is an example of using the image endpoint:
@@ -198,11 +220,13 @@ Set to nil to use `mode-line-format' instead.
 * [org-assistant-model](#org-assistant-model)<a name="org-assistant-model"></a>
 The model used for the assistant.
 
+* [org-assistant-curl-command](#org-assistant-curl-command)<a name="org-assistant-curl-command"></a>
+The path to the curl command used to run requests.
+
 * [org-assistant-endpoint](#org-assistant-endpoint)<a name="org-assistant-endpoint"></a>
 The endpoint used for the assistant.
 `org-assistant-endpoint-path-chat' and `org-assistant-endpoint-path-image'
 contain the paths for the respective APIs.
-
 
 * [org-assistant-endpoint-path-chat](#org-assistant-endpoint-path-chat)<a name="org-assistant-endpoint-path-chat"></a>
 The path used for the chat API.
