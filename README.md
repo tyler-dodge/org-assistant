@@ -176,7 +176,7 @@ User: Branch B
 Assistant: Branch B Response
 ```
 
-‘org-assistant’ also supporst image generation.
+‘org-assistant’ also supports image generation.
 If the :file attribute is set, the image API will be used.
 
 The following is an example of using the image endpoint:
