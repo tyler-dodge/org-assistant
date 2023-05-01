@@ -7,7 +7,7 @@
 org-assistant provides support for accessing chat APIs such as
 ChatGPT in the context of an org notebook.
 
-![org-assistant-usage](screenshot/example.gif)
+<img src="screenshots/example.gif" alt="example" width="400" />
 
 ## Installation
 
