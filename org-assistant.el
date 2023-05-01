@@ -25,6 +25,14 @@
 ;; org-assistant provides support for accessing chat APIs such as
 ;; ChatGPT in the context of an org notebook.
 ;;
+;; ## Installation
+;;
+;; Org-assistant is available on [MELPA](http://melpa.org/#/org-assistant)
+;;
+;; <kbd>M-x</kbd> `package-install` <kbd>[RET]</kbd> `org-assistant` <kbd>[RET]</kbd>
+;;
+;; ## Overview
+;;
 ;; It provides a function named org-assistant that serves as
 ;; entrypoint for displaying an org assistant buffer.  Also, it can be
 ;; used in any org file by using a src block like #+BEGIN_SRC
@@ -34,6 +42,10 @@
 ;; meen tested using the MacOS Keychain.  Alternatively,
 ;; org-assistant-auth-function can be a string and directly set to
 ;; your API key.
+;; <example>
+;; (setq org-assistant-auth-function "<YOUR_API_KEY>")
+;; </example>
+
 ;;
 ;; org-assistant uses the org tree in order to generate the message
 ;; list whenever sending information to the chat endpoint.  It will
