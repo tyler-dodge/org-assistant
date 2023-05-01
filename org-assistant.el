@@ -681,10 +681,11 @@ request."
     :url (org-assistant-image-endpoint)
     :method "POST"
     :json `(("response_format" . "b64_json")
-            ("prompt" . ,(->> blocks
-                              (--mapcat
-                               (concat (symbol-name (car it))
-                                       (encode-coding-string (cdr it) 'utf-8)))))))))
+            ("prompt" . ,(cl-loop for (name . message) in blocks
+                                  concat
+                                  (concat (symbol-name name)
+                                          ": "
+                                          (encode-coding-string message 'utf-8))))))))
 
 (defun org-assistant--default-headers ()
   "Return the headers used by the `org-assistant' endpoint."
