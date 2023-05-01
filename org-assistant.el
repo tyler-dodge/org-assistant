@@ -112,8 +112,7 @@ Set to nil to use `mode-line-format' instead."
 (defcustom org-assistant-endpoint "https://api.openai.com"
   "The endpoint used for the assistant.
 `org-assistant-endpoint-path-chat' and `org-assistant-endpoint-path-image'
-contain the paths for the respective APIs.
-"
+contain the paths for the respective APIs."
   :group 'org-assistant
   :type '(string))
 
@@ -299,13 +298,13 @@ later substituted by `org-assistant'."
                                        (goto-char (match-end 0))
                                        (forward-line 0)
                                        (cl-loop with first = t
-                                                while (looking-at-p (rx (literal (car message))))
+                                                while (looking-at (rx (literal (car message)) line-end))
                                                 do
                                                 (if first
                                                     (progn
                                                       (forward-line 1)
                                                       (setq first nil))
-                                                  (delete-line))))
+                                                  (replace-match ""))))
                                       (_
                                        (let ((,insert-prompt-var
                                               (and
@@ -353,9 +352,9 @@ later substituted by `org-assistant'."
   "Validate and return joined DOMAIN and PATH."
   `(prog1 (concat ,domain ,path)
      (when (string-suffix-p "/" ,domain)
-       (user-error "`%s' must not end with /. Actual: %s" (quote ,domain) ,domain))
+       (user-error "`%s' must not end with /.  Actual: %s" (quote ,domain) ,domain))
      (unless (string-prefix-p "/" ,path)
-       (user-error "`%s' must start with with /. Actual: %s" (quote ,path) ,path))))
+       (user-error "`%s' must start with with /.  Actual: %s" (quote ,path) ,path))))
 
 ;;;###autoload
 (defun org-babel-execute:assistant (text params)
@@ -457,7 +456,7 @@ User: Branch B
 Assistant: Branch B Response
 </example>
 
-org-assistant also supporst image generation.
+`org-assistant' also supporst image generation.
 If the :file attribute is set, the image API will be used.
 
 The following is an example of using the image endpoint:
@@ -480,7 +479,8 @@ An image of the GNU mascot
       (cond
        ((assoc :file params)
         (let ((files (--> (alist-get :file params) (if (listp it) it (list it)))))
-          (--each files (when (not (string-suffix-p ".png" it)) (user-error "Only .png output files are supported %s" it)))
+          (--each files (when (not (string-suffix-p ".png" it))
+                          (user-error "Only .png output files are supported %s" it)))
           (org-assistant-org-babel-async-response
             (deferred:$
              (org-assistant--queue-image-request org-assistant--request-id blocks)
@@ -495,8 +495,7 @@ An image of the GNU mascot
                             (prog1 (concat "file:" file)
                               (with-temp-file file
                                   (insert
-                                   (base64-decode-string 
-                                    (alist-get 'b64_json data))))))))))))))
+                                   (base64-decode-string (alist-get 'b64_json data))))))))))))))
 
        (t (org-assistant-org-babel-async-response
             (deferred:$
@@ -669,7 +668,7 @@ request."
                                        (encode-coding-string (cdr it) 'utf-8)))))))))
 
 (defun org-assistant--default-headers ()
-  "Return the headers used by the org-assistant endpoint."
+  "Return the headers used by the `org-assistant' endpoint."
   `(("Authorization" . ,(concat "Bearer "
                                 (if (stringp org-assistant-auth-function)
                                     org-assistant-auth-function
@@ -695,14 +694,15 @@ request."
                    (vconcat)))))))
 
 (defmacro org-assistant--request-lambda (&rest args)
-  "Macro for generating a queueable request lambda for use with `org-assistant--queue-request'.
+  "Macro for generating a queueable request lambda.
+
+Intended for use with `org-assistant--queue-request'.
 
 ARGS is expected to be a plist with the following keys:
 :url The endpoint
 :method The HTTP Method
 :headers Defaults to (org-assistant--default-headers) if not set
-:json See `org-assistant--json-encode'
-"
+:json See `org-assistant--json-encode'."
   (-let [(&plist :url :method :headers :json) args]
     (or url (error "Url must be set %S" args))
     (or method (error "Method must be set %S" args))
