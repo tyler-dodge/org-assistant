@@ -1,6 +1,6 @@
 # org-assistant.el
 [![License](https://img.shields.io/badge/license-GPL_3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
-[![MELPA](https://melpa.org/packages/org-assistant-badge.svg)](https://melpa.org/#/org-runbook)
+[![MELPA](https://melpa.org/packages/org-assistant-badge.svg)](https://melpa.org/#/org-assistant)
 [![Version](https://img.shields.io/github/v/tag/tyler-dodge/org-assistant)](https://github.com/tyler-dodge/org-assistant/releases)
 
 
@@ -72,12 +72,12 @@ Hello! How can I assist you today?
 
 ## Commands
 
-* [org-assistant](#org-assistant) <a name="org-assistant"></a>
+* [org-assistant](#org-assistant) <a name="org-assistant"></a>:
 Prompt the user for an initial prompt for the assistant.
 
 Then display a window with the buffer containing the response.
 
-* [org-babel-execute:assistant](#org-babel-execute%3Aassistant) <a name="org-babel-execute:assistant"></a>
+* [org-babel-execute:assistant](#org-babel-execute%3Aassistant) <a name="org-babel-execute:assistant"></a>:
 Execute an ‘org-assistant’ in an org-babel context.
 
 PARAMS is used to enable noweb mode.
@@ -187,59 +187,59 @@ An image of the GNU mascot
 #+END_SRC
 ```
 
-* [org-babel-execute:?](#org-babel-execute%3A?) <a name="org-babel-execute:?"></a>
+* [org-babel-execute:?](#org-babel-execute%3A?) <a name="org-babel-execute:?"></a>:
 See ‘org-babel-execute:assistant’.
 
 ARGS is routed as is.
 
-* [org-assistant-explain-function](#org-assistant-explain-function) <a name="org-assistant-explain-function"></a>
+* [org-assistant-explain-function](#org-assistant-explain-function) <a name="org-assistant-explain-function"></a>:
 Ask the assistant to explain the function at point.
 
-* [org-assistant-write-docstring](#org-assistant-write-docstring) <a name="org-assistant-write-docstring"></a>
+* [org-assistant-write-docstring](#org-assistant-write-docstring) <a name="org-assistant-write-docstring"></a>:
 Ask the assistant to generate a docstring for the function at point.
 
 
 ## Customization
 
-* [org-assistant-auth-function](#org-assistant-auth-function)<a name="org-assistant-auth-function"></a>
+* [org-assistant-auth-function](#org-assistant-auth-function)<a name="org-assistant-auth-function"></a>:
 Function used to get the secret key.
 Optionally can be set directly to a string, in which case it will be
 used as the OpenAI key.
 
-* [org-assistant-mode-visual-line-enabled](#org-assistant-mode-visual-line-enabled)<a name="org-assistant-mode-visual-line-enabled"></a>
+* [org-assistant-mode-visual-line-enabled](#org-assistant-mode-visual-line-enabled)<a name="org-assistant-mode-visual-line-enabled"></a>:
 When non-nil, `visual-line-mode' is enabled with `org-assistant-mode'.
 
-* [org-assistant-buffer-name](#org-assistant-buffer-name)<a name="org-assistant-buffer-name"></a>
+* [org-assistant-buffer-name](#org-assistant-buffer-name)<a name="org-assistant-buffer-name"></a>:
 The buffer name used for the `org-assistant' buffer.
 
-* [org-assistant-mode-line-format](#org-assistant-mode-line-format)<a name="org-assistant-mode-line-format"></a>
+* [org-assistant-mode-line-format](#org-assistant-mode-line-format)<a name="org-assistant-mode-line-format"></a>:
 The `mode-line-format' used by the `org-assistant' buffer.
 
 Set to nil to use `mode-line-format' instead.
 
-* [org-assistant-model](#org-assistant-model)<a name="org-assistant-model"></a>
+* [org-assistant-model](#org-assistant-model)<a name="org-assistant-model"></a>:
 The model used for the assistant.
 
-* [org-assistant-curl-command](#org-assistant-curl-command)<a name="org-assistant-curl-command"></a>
+* [org-assistant-curl-command](#org-assistant-curl-command)<a name="org-assistant-curl-command"></a>:
 The path to the curl command used to run requests.
 
-* [org-assistant-endpoint](#org-assistant-endpoint)<a name="org-assistant-endpoint"></a>
+* [org-assistant-endpoint](#org-assistant-endpoint)<a name="org-assistant-endpoint"></a>:
 The endpoint used for the assistant.
 `org-assistant-endpoint-path-chat' and `org-assistant-endpoint-path-image'
 contain the paths for the respective APIs.
 
-* [org-assistant-endpoint-path-chat](#org-assistant-endpoint-path-chat)<a name="org-assistant-endpoint-path-chat"></a>
+* [org-assistant-endpoint-path-chat](#org-assistant-endpoint-path-chat)<a name="org-assistant-endpoint-path-chat"></a>:
 The path used for the chat API.
 See `org-assistant-endpoint' for the domain.
 
-* [org-assistant-endpoint-path-models](#org-assistant-endpoint-path-models)<a name="org-assistant-endpoint-path-models"></a>
+* [org-assistant-endpoint-path-models](#org-assistant-endpoint-path-models)<a name="org-assistant-endpoint-path-models"></a>:
 The path used for the list models API.
 See `org-assistant-endpoint' for the domain.
 
-* [org-assistant-endpoint-path-image](#org-assistant-endpoint-path-image)<a name="org-assistant-endpoint-path-image"></a>
+* [org-assistant-endpoint-path-image](#org-assistant-endpoint-path-image)<a name="org-assistant-endpoint-path-image"></a>:
 The endpoint used for the assistant.
 
-* [org-assistant-parallelism](#org-assistant-parallelism)<a name="org-assistant-parallelism"></a>
+* [org-assistant-parallelism](#org-assistant-parallelism)<a name="org-assistant-parallelism"></a>:
 The max inflight requests to send with `org-assistant' at once.
 
 
