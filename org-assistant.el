@@ -377,7 +377,7 @@ ARGS is expected to be a plist with the following keys:
                            (s-join " "
                                    (->>
                                     (append
-                                     (list org-assistant-curl-command (org-assistant-chat-endpoint))
+                                     (list org-assistant-curl-command ,url)
                                      (cl-loop for (header . value) in (or ,headers (org-assistant--default-headers))
                                               append (list "-H" (concat "'" header ":" value "'")))
                                      (list "-X" (shell-quote-argument ,method))
