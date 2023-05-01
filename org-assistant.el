@@ -109,6 +109,11 @@ Set to nil to use `mode-line-format' instead."
   :group 'org-assistant
   :type '(string))
 
+(defcustom org-assistant-curl-command "curl"
+  "The path to the curl command used to run requests."
+  :group 'org-assistant
+  :type '(string))
+
 (defcustom org-assistant-endpoint "https://api.openai.com"
   "The endpoint used for the assistant.
 `org-assistant-endpoint-path-chat' and `org-assistant-endpoint-path-image'
@@ -372,7 +377,7 @@ ARGS is expected to be a plist with the following keys:
                            (s-join " "
                                    (->>
                                     (append
-                                     (list "curl" (org-assistant-chat-endpoint))
+                                     (list org-assistant-curl-command (org-assistant-chat-endpoint))
                                      (cl-loop for (header . value) in (or ,headers (org-assistant--default-headers))
                                               append (list "-H" (concat "'" header ":" value "'")))
                                      (list "-X" (shell-quote-argument ,method))
@@ -709,7 +714,7 @@ request."
         (setq org-assistant--request-queue
               (append org-assistant--request-queue
                       (list (cons request-id job-with-promise)) nil))
-      (org-assistant--queue-request-execute request-id job-with-promise))
+      (org-assistant--queue-request-execute job-with-promise))
     promise))
 
 (defun org-assistant--queue-image-request (request-id blocks)
@@ -781,7 +786,7 @@ request."
   (setq org-assistant--request-queue-active-p nil)
   (setq org-assistant--request-queue nil))
 
-(defun org-assistant--queue-request-execute (request-id job)
+(defun org-assistant--queue-request-execute (job)
   "Execute JOB for `org-assistant'.
 
 JOB may be delayed based on `org-assistant-parallelism'.
@@ -797,7 +802,7 @@ Return nil."
       (lambda (result)
         (prog1 result
           (-some--> (pop org-assistant--request-queue)
-            (org-assistant--queue-request-execute (car it) (cdr it))))))
+            (org-assistant--queue-request-execute (cdr it))))))
      (deferred:nextc it (lambda (&rest arg) arg)))
       (when (or org-assistant--inflight-request
                 org-assistant--request-queue)
