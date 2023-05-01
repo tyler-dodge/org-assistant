@@ -72,12 +72,12 @@ Hello! How can I assist you today?
 
 ## Commands
 
-* [org-assistant](#org-assistant)<a name="org-assistant"></a>:
+### org-assistant
 Prompt the user for an initial prompt for the assistant.
 
 Then display a window with the buffer containing the response.
 
-* [org-babel-execute:assistant](#org-babel-execute%3Aassistant)<a name="org-babel-execute:assistant"></a>:
+### org-babel-execute:assistant
 Execute an ‘org-assistant’ in an org-babel context.
 
 PARAMS is used to enable noweb mode.
@@ -187,15 +187,15 @@ An image of the GNU mascot
 #+END_SRC
 ```
 
-* [org-babel-execute:?](#org-babel-execute%3A?)<a name="org-babel-execute:?"></a>:
+### org-babel-execute:?
 See ‘org-babel-execute:assistant’.
 
 ARGS is routed as is.
 
-* [org-assistant-explain-function](#org-assistant-explain-function)<a name="org-assistant-explain-function"></a>:
+### org-assistant-explain-function
 Ask the assistant to explain the function at point.
 
-* [org-assistant-write-docstring](#org-assistant-write-docstring)<a name="org-assistant-write-docstring"></a>:
+### org-assistant-write-docstring
 Ask the assistant to generate a docstring for the function at point.
 
 
