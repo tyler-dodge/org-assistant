@@ -30,8 +30,8 @@ your API key.
 
 
 ### Conversation Evaluation Rules
-- The org tree in order to generate the message
-list whenever sending information to the chat endpoint.
+- The org tree is traversed up in order to generate the message
+list when sending information to the chat endpoint.
 - It will only use messages from the branch of the tree that the block that
 initiated the request is in.
 - It does not include example blocks or source blocks that appear later in
