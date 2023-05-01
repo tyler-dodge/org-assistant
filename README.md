@@ -8,8 +8,6 @@
 
  Org babel extension for Chat Assistant APIs
 
-## Usage
-
 org-assistant provides support for accessing chat APIs such as
 ChatGPT in the context of an org notebook.
 

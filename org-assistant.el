@@ -31,7 +31,7 @@
 ;;
 ;; <kbd>M-x</kbd> `package-install` <kbd>[RET]</kbd> `org-assistant` <kbd>[RET]</kbd>
 ;;
-;; ## Overview
+;; ## Usage
 ;;
 ;; It provides a function named org-assistant that serves as
 ;; entrypoint for displaying an org assistant buffer.  Also, it can be
