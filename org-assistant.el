@@ -90,10 +90,47 @@
 ;; #+BEGIN_SRC ? :file sphere.png
 ;; Generate a sphere
 ;; #+END_SRC
-;; 
+;;
 ;; AI Response
 ;; #+RESULTS:
 ;; file:sphere.png
+;; </example>
+;;
+;; You can introspect the sent conversation using the :echo flag.
+;; <example>
+;; * Branching Echo
+;; #+BEGIN_SRC ?
+;; This is the user. Repeat verbatim only: "This is the system"
+;; #+END_SRC
+;;
+;; #+RESULTS:
+;; #+BEGIN_EXAMPLE
+;; "This is the system"
+;; #+END_EXAMPLE
+;;
+;; ** Branch A
+;; #+BEGIN_SRC ? :echo
+;; Response A
+;; #+END_SRC
+;;
+;; #+RESULTS:
+;; #+BEGIN_EXAMPLE
+;; (user . "This is the user. Repeat verbatim only: \"This is the system\"")
+;; (assistant . "\"This is the system\"")
+;; (user . "Response A")
+;; #+END_EXAMPLE
+;;
+;; ** Branch B
+;; #+BEGIN_SRC ? :echo
+;; Response B
+;; #+END_SRC
+;;
+;; #+RESULTS:
+;; #+BEGIN_EXAMPLE
+;; (user . "This is the user. Repeat verbatim only: \"This is the system\"")
+;; (assistant . "\"This is the system\"")
+;; (user . "Response B")
+;; #+END_EXAMPLE
 ;; </example>
 ;;
 ;; ## Comparison With Other AI Packages

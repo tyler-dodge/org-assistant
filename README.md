@@ -78,6 +78,43 @@ AI Response
 file:sphere.png
 ```
 
+You can introspect the sent conversation using the :echo flag.
+```
+* Branching Echo
+#+BEGIN_SRC ?
+This is the user. Repeat verbatim only: "This is the system"
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+"This is the system"
+#+END_EXAMPLE
+
+** Branch A
+#+BEGIN_SRC ? :echo
+Response A
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+(user . "This is the user. Repeat verbatim only: \"This is the system\"")
+(assistant . "\"This is the system\"")
+(user . "Response A")
+#+END_EXAMPLE
+
+** Branch B
+#+BEGIN_SRC ? :echo
+Response B
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+(user . "This is the user. Repeat verbatim only: \"This is the system\"")
+(assistant . "\"This is the system\"")
+(user . "Response B")
+#+END_EXAMPLE
+```
+
 ## Comparison With Other AI Packages
 ### [org-assistant.el](https://github.com/tyler-dodge/org-assistant) and [org-ai.el](https://github.com/rksm/org-ai)
 - [org-ai.el](https://github.com/rksm/org-ai) is focused more on runtime interaction with AI
