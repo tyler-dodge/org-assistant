@@ -59,22 +59,22 @@
 ;; </example>
 ;;
 ;; ## Comparison With Other AI Packages
-;; ### What's the difference between org-assistant.el and org-ai.el
+;; ### [org-assistant.el](https://github.com/tyler-dodge/org-assistant) and [org-ai.el](https://github.com/rksm/org-ai)
 ;; - [org-ai.el](https://github.com/rksm/org-ai) is focused more on runtime interaction with AI
-;; - org-assistant.el is focused more on reproducible sessions
+;; - [org-assistant.el](https://github.com/tyler-dodge/org-assistant) is focused more on reproducible sessions
 ;;     via org babel
-;; - org-assistant.el supports branching conversations 
-;; - org-assistant.el is not meant to be used downstream
+;; - [org-assistant.el](https://github.com/tyler-dodge/org-assistant) supports branching conversations
+;; - [org-assistant.el](https://github.com/tyler-dodge/org-assistant) is not meant to be used downstream
 ;;      as a library for AI endpoint interactions.
-;; - In org-assistant.el, all interaction is async using org-babel, which allows
+;; - In [org-assistant.el](https://github.com/tyler-dodge/org-assistant), all interaction is async using org-babel, which allows
 ;;     for notebook style prompt development
 ;; - In [org-ai.el](https://github.com/rksm/org-ai), interaction is synchronous and inline,
 ;;     which is better for in-editor use cases
 ;; - [org-ai.el](https://github.com/rksm/org-ai) supports a lot of other AI use cases like text to speech
 ;;
-;; ### What's the difference between org-assistant.el and [gptel](https://github.com/karthink/gptel)
+;; ### [org-assistant.el](https://github.com/tyler-dodge/org-assistant) and [gptel](https://github.com/karthink/gptel)
 ;; - Most of the same differences and similarities apply from
-;;     org-assistant.el and [org-ai.el](https://github.com/rksm/org-ai)
+;;     [org-assistant.el](https://github.com/tyler-dodge/org-assistant) and [org-ai.el](https://github.com/rksm/org-ai)
 ;;
 ;; ### Feel free to add a pull request detailing the differences if there is a package I missed
 ;;
