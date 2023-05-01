@@ -147,6 +147,7 @@ This should match `org-babel-default-header-args:?'")
   org-babel-default-header-args:assistant
   "Extra args so that org babel renders the results correctly.
 This should match `org-babel-default-header-args:assistant'")
+
 (defvar org-assistant-history nil
   "History variable for `org-assistant'.")
 
@@ -200,9 +201,6 @@ contained in MESSAGE."
 (defvar org-assistant--inflight-request nil
   "Tracks inflight requests for `org-assistant'.")
 
-(defvar org-assistant--active-request nil
-  "Tracks inflight requests that are active for `org-assistant'.")
-
 (defvar org-assistant--request-queue-active-p nil
   "Tracks when the request queue is active.
 
@@ -251,6 +249,9 @@ where openai-key is an application password with the name openai-key."
 (defvar org-assistant--request-id nil
   "Request ID for `org-assistant'.
 Set specially by the macro `org-assistant-org-babel-async-response'.")
+
+(defvar org-assistant--request-processes-ht (make-hash-table :test #'equal)
+  "Hash table mapping request id to active process.")
 
 ;;;###autoload
 (defmacro org-assistant-org-babel-async-response (&rest prog)
@@ -357,48 +358,53 @@ ARGS is expected to be a plist with the following keys:
   (-let [(&plist :url :method :headers :request-id :json) args]
     (or url (error "Url must be set %S" args))
     (or method (error "Method must be set %S" args))
-    `(lambda ()
-       (let* ((promise (deferred:new)) 
-              (shell-buffer (generate-new-buffer " *org-assistant-request*"))
-              (callback
-               (lambda ()
-                 (let ((process
-                        (start-process-shell-command
-                         (concat "curl " request-id)
-                         shell-buffer
-                         (s-join " "
-                                 (->>
-                                  (append
-                                   (list "curl" (org-assistant-chat-endpoint))
-                                   (cl-loop for (header . value) in (or ,headers (org-assistant--default-headers))
-                                            append (list "-H" (concat "'" header ":" value "'")))
-                                   (list "-X" (shell-quote-argument ,method))
-                                   (-some--> ,json
-                                     (let ((file (make-temp-file "json")))
-                                       (with-temp-file file
-                                         (insert (org-assistant--json-encode it)))
-                                       (list "--json" (concat "@" file))))
-                                   nil))))))
-                   (set-process-sentinel
-                    process
-                    (lambda (process status)
-                      (run-at-time
-                       nil nil
-                       (lambda ()
-                         (cond
-                          ((not (string= (string-trim status) "finished"))
-                           (deferred:errorback-post promise status)
-                           t)
-                          ((not (buffer-live-p shell-buffer))
-                           (deferred:errorback-post promise (concat "Buffer not live" (buffer-name shell-buffer)))
-                           t)
-                          (t
-                           (with-current-buffer shell-buffer
-                             (deferred:callback-post promise
-                                                     (buffer-string)))))
-                         (kill-buffer shell-buffer)))))))))
-         (run-at-time nil nil callback)
-         promise))))
+    (let ((request-id-var (make-symbol "request-id")))
+      `(lambda ()
+         (let* ((promise (deferred:new)) 
+                (,request-id-var ,request-id)
+                (shell-buffer (generate-new-buffer " *org-assistant-request*"))
+                (callback
+                 (lambda ()
+                   (let ((process
+                          (start-process-shell-command
+                           (concat "curl " ,request-id-var)
+                           shell-buffer
+                           (s-join " "
+                                   (->>
+                                    (append
+                                     (list "curl" (org-assistant-chat-endpoint))
+                                     (cl-loop for (header . value) in (or ,headers (org-assistant--default-headers))
+                                              append (list "-H" (concat "'" header ":" value "'")))
+                                     (list "-X" (shell-quote-argument ,method))
+                                     (-some--> ,json
+                                       (let ((file (make-temp-file "json")))
+                                         (with-temp-file file
+                                           (insert (org-assistant--json-encode it)))
+                                         (list "--json" (concat "@" file))))
+                                     nil))))))
+                     (puthash ,request-id-var process org-assistant--request-processes-ht)
+                     (set-process-sentinel
+                      process
+                      (lambda (process status)
+                        (run-at-time
+                         nil nil
+                         (lambda ()
+                           (cond
+                            ((not (string= (string-trim status) "finished"))
+                             (deferred:errorback-post promise status)
+                             t)
+                            ((not (buffer-live-p shell-buffer))
+                             (deferred:errorback-post promise (concat "Buffer not live" (buffer-name shell-buffer)))
+                             t)
+                            (t
+                             (with-current-buffer shell-buffer
+                               (deferred:callback-post promise
+                                                       (buffer-string)))))
+
+                           (remhash ,request-id-var org-assistant--request-processes-ht)
+                           (kill-buffer shell-buffer)))))))))
+           (run-at-time nil nil callback)
+           promise)))))
 
 (defmacro org-assistant--join-endpoint (domain path)
   "Validate and return joined DOMAIN and PATH."
@@ -518,6 +524,7 @@ The following is an example of using the image endpoint:
 An image of the GNU mascot
 #+END_SRC
 </example>"
+  (org-assistant-cancel-block-at-point)
   (unless (> org-assistant-parallelism 0)
     (user-error "`org-assistant-parallelism' set to an invalid value.  Must be greater than 0"))
   (cond
@@ -698,9 +705,11 @@ request."
                (deferred:error it (lambda (error)
                                     (deferred:errorback-post promise error)
                                     "SUPPRESSED")))))))
-    (if (>= (length org-assistant--active-request) org-assistant-parallelism)
-        (setq org-assistant--request-queue (append org-assistant--request-queue (list (cons request-id job-with-promise)) nil))
-      (org-assistant--queue-request-execute job-with-promise))
+    (if (>= (ht-size org-assistant--request-processes-ht) org-assistant-parallelism)
+        (setq org-assistant--request-queue
+              (append org-assistant--request-queue
+                      (list (cons request-id job-with-promise)) nil))
+      (org-assistant--queue-request-execute request-id job-with-promise))
     promise))
 
 (defun org-assistant--queue-image-request (request-id blocks)
@@ -767,12 +776,12 @@ request."
 (defun org-assistant-clear-request-queue ()
   "Reset `org-assistant' request queue to orginal state."
   (interactive)
+  (setq org-assistant--request-processes-ht (make-hash-table :test #'equal))
   (setq org-assistant--inflight-request nil)
   (setq org-assistant--request-queue-active-p nil)
-  (setq org-assistant--active-request nil)
   (setq org-assistant--request-queue nil))
 
-(defun org-assistant--queue-request-execute (job)
+(defun org-assistant--queue-request-execute (request-id job)
   "Execute JOB for `org-assistant'.
 
 JOB may be delayed based on `org-assistant-parallelism'.
@@ -788,7 +797,7 @@ Return nil."
       (lambda (result)
         (prog1 result
           (-some--> (pop org-assistant--request-queue)
-            (org-assistant--queue-request-execute (cdr it))))))
+            (org-assistant--queue-request-execute (car it) (cdr it))))))
      (deferred:nextc it (lambda (&rest arg) arg)))
       (when (or org-assistant--inflight-request
                 org-assistant--request-queue)
@@ -811,6 +820,32 @@ Return nil."
         (json-key-type 'symbol)
         (json-array-type 'vector))
     (json-read-from-string json)))
+
+(defun org-assistant-cancel-block-at-point ()
+  (interactive)
+  (save-match-data
+    (save-excursion
+      (forward-line 0)
+      (re-search-forward (rx line-start "#+END_SRC") nil t)
+      (let ((end (save-excursion
+                   (forward-line 4)
+                   (point))))
+        (when (re-search-forward (rx line-start "#+RESULTS:") end t)
+          (goto-char (match-beginning 0))
+          (forward-line 1)
+          (cl-flet ((uuid-at-point ()
+                      (when (looking-at (rx line-start (* whitespace) (+ (any alphanumeric "-")) (* whitespace) line-end))
+                        (string-trim (match-string 0)))))
+            (while-let ((uuid (uuid-at-point)))
+              (-some-->
+                  (gethash uuid org-assistant--request-processes-ht)
+                (progn
+                  (replace-match "")
+                  (kill-process it)
+                  (remhash uuid org-assistant--request-processes-ht)
+                  (setq org-assistant--inflight-request
+                        (--filter (not (string= it uuid)) org-assistant--inflight-request))
+                  (forward-line 1))))))))))
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
