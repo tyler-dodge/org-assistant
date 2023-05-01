@@ -235,15 +235,15 @@ Optionally can be set directly to a string, in which case it will be
 used as the OpenAI key.
 
 * [org-assistant-mode-visual-line-enabled](#org-assistant-mode-visual-line-enabled)<a name="org-assistant-mode-visual-line-enabled"></a>:
-When non-nil, `visual-line-mode' is enabled with `org-assistant-mode'.
+When non-nil, 'visual-line-mode' is enabled with 'org-assistant-mode'.
 
 * [org-assistant-buffer-name](#org-assistant-buffer-name)<a name="org-assistant-buffer-name"></a>:
-The buffer name used for the `org-assistant' buffer.
+The buffer name used for the 'org-assistant' buffer.
 
 * [org-assistant-mode-line-format](#org-assistant-mode-line-format)<a name="org-assistant-mode-line-format"></a>:
-The `mode-line-format' used by the `org-assistant' buffer.
+The 'mode-line-format' used by the 'org-assistant' buffer.
 
-Set to nil to use `mode-line-format' instead.
+Set to nil to use 'mode-line-format' instead.
 
 * [org-assistant-model](#org-assistant-model)<a name="org-assistant-model"></a>:
 The model used for the assistant.
@@ -253,22 +253,22 @@ The path to the curl command used to run requests.
 
 * [org-assistant-endpoint](#org-assistant-endpoint)<a name="org-assistant-endpoint"></a>:
 The endpoint used for the assistant.
-`org-assistant-endpoint-path-chat' and `org-assistant-endpoint-path-image'
+'org-assistant-endpoint-path-chat' and 'org-assistant-endpoint-path-image'
 contain the paths for the respective APIs.
 
 * [org-assistant-endpoint-path-chat](#org-assistant-endpoint-path-chat)<a name="org-assistant-endpoint-path-chat"></a>:
 The path used for the chat API.
-See `org-assistant-endpoint' for the domain.
+See 'org-assistant-endpoint' for the domain.
 
 * [org-assistant-endpoint-path-models](#org-assistant-endpoint-path-models)<a name="org-assistant-endpoint-path-models"></a>:
 The path used for the list models API.
-See `org-assistant-endpoint' for the domain.
+See 'org-assistant-endpoint' for the domain.
 
 * [org-assistant-endpoint-path-image](#org-assistant-endpoint-path-image)<a name="org-assistant-endpoint-path-image"></a>:
 The endpoint used for the assistant.
 
 * [org-assistant-parallelism](#org-assistant-parallelism)<a name="org-assistant-parallelism"></a>:
-The max inflight requests to send with `org-assistant' at once.
+The max inflight requests to send with 'org-assistant' at once.
 
 
 ## Contributing
