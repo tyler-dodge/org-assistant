@@ -1,4 +1,5 @@
-# org-assistant.el -  Org babel extension for Chat Assistant APIs
+# org-assistant.el
+ Org babel extension for Chat Assistant APIs
 [![License](https://img.shields.io/badge/license-GPL_3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
 [![MELPA](https://melpa.org/packages/org-assistant-badge.svg)](https://melpa.org/#/org-assistant)
 [![Version](https://img.shields.io/github/v/tag/tyler-dodge/org-assistant)](https://github.com/tyler-dodge/org-assistant/releases)
