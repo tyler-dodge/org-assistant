@@ -29,7 +29,7 @@
 ;;
 ;; ## Installation
 ;;
-;; Org-assistant is available on [MELPA](http://melpa.org/#/org-assistant)
+;; Org-assistant is available on [MELPA](http://stable.melpa.org/#/org-assistant)
 ;;
 ;; <kbd>M-x</kbd> `package-install` <kbd>[RET]</kbd> `org-assistant` <kbd>[RET]</kbd>
 ;;

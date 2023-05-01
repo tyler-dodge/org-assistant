@@ -1,4 +1,4 @@
-# org-assistant.el - [![License](https://img.shields.io/badge/license-GPL_3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.txt) [![MELPA](https://melpa.org/packages/org-assistant-badge.svg)](https://melpa.org/#/org-assistant) [![Version](https://img.shields.io/github/v/tag/tyler-dodge/org-assistant)](https://github.com/tyler-dodge/org-assistant/releases)
+# org-assistant.el - [![License](https://img.shields.io/badge/license-GPL_3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.txt) [![MELPA](https://stable.melpa.org/packages/org-assistant-badge.svg)](https://stable.melpa.org/#/org-assistant) [![Version](https://img.shields.io/github/v/tag/tyler-dodge/org-assistant)](https://github.com/tyler-dodge/org-assistant/releases)
 ###  Org babel extension for Chat Assistant APIs
 
 
@@ -11,7 +11,7 @@ ChatGPT in the context of an org notebook.
 
 ## Installation
 
-Org-assistant is available on [MELPA](http://melpa.org/#/org-assistant)
+Org-assistant is available on [MELPA](http://stable.melpa.org/#/org-assistant)
 
 <kbd>M-x</kbd> 'package-install' <kbd>[RET]</kbd> 'org-assistant' <kbd>[RET]</kbd>
 
