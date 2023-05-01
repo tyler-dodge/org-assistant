@@ -480,6 +480,7 @@ An image of the GNU mascot
       (cond
        ((assoc :file params)
         (let ((files (--> (alist-get :file params) (if (listp it) it (list it)))))
+          (--each files (when (not (string-suffix-p ".png" it)) (user-error "Only .png output files are supported %s" it)))
           (org-assistant-org-babel-async-response
             (deferred:$
              (org-assistant--queue-image-request org-assistant--request-id blocks)
