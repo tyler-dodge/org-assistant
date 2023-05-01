@@ -395,7 +395,8 @@ ARGS is expected to be a plist with the following keys:
                           (t
                            (with-current-buffer shell-buffer
                              (deferred:callback-post promise
-                                                     (buffer-string)))))))))))))
+                                                     (buffer-string)))))
+                         (kill-buffer shell-buffer)))))))))
          (run-at-time nil nil callback)
          promise))))
 
