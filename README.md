@@ -48,21 +48,21 @@ Hello! How can I assist you today?
 
 ## Comparison With Other AI Packages
 ### What's the difference between org-assistant.el and org-ai.el
-    - [org-ai.el](https://github.com/rksm/org-ai) is focused more on runtime interaction with AI
-    - org-assistant.el is focused more on reproducible sessions
-        via org babel
-    - org-assistant.el supports branching conversations 
-    - org-assistant.el is not meant to be used downstream
-         as a library for AI endpoint interactions.
-    - In org-assistant.el, all interaction is async using org-babel, which allows
-        for notebook style prompt development
-    - In [org-ai.el](https://github.com/rksm/org-ai), interaction is synchronous and inline,
-        which is better for in-editor use cases
-    - [org-ai.el](https://github.com/rksm/org-ai) supports a lot of other AI use cases like text to speech
+- [org-ai.el](https://github.com/rksm/org-ai) is focused more on runtime interaction with AI
+- org-assistant.el is focused more on reproducible sessions
+    via org babel
+- org-assistant.el supports branching conversations 
+- org-assistant.el is not meant to be used downstream
+     as a library for AI endpoint interactions.
+- In org-assistant.el, all interaction is async using org-babel, which allows
+    for notebook style prompt development
+- In [org-ai.el](https://github.com/rksm/org-ai), interaction is synchronous and inline,
+    which is better for in-editor use cases
+- [org-ai.el](https://github.com/rksm/org-ai) supports a lot of other AI use cases like text to speech
 
 ### What's the difference between org-assistant.el and [gptel](https://github.com/karthink/gptel)
-    - Most of the same differences and similarities apply from
-        org-assistant.el and [org-ai.el](https://github.com/rksm/org-ai)
+- Most of the same differences and similarities apply from
+    org-assistant.el and [org-ai.el](https://github.com/rksm/org-ai)
 
 ### Feel free to add a pull request detailing the differences if there is a package I missed
 
