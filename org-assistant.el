@@ -568,7 +568,7 @@ JOB may be delayed based on `org-assistant-parallelism'.
 Return nil."
   (prog1 nil
     (deferred:$
-     (deferred:next (lambda () (funcall job)))
+     (deferred:next (lambda (&rest _) (funcall job)))
      (deferred:error it (lambda (&rest arg)
                           (message "%S" arg)
                           "Suppressed since logged elsewhere"))
