@@ -326,17 +326,19 @@ later substituted by `org-assistant'."
             (progn ,@prog)
             (when (and it (or (deferred-p it)
                               (error "Provided an unexpected type, expected deferred: %S" it)))
-              (deferred:error it (lambda (error) (list (format "%S" error)))))
+              (deferred:error it (lambda (error) (format "%S" error))))
             (when it
               (deferred:nextc it (lambda (response)
-                                   (pcase (car response)
+                                   (pcase (car-safe response)
                                      ('file-list
                                       (babel-response (cdr response) (car response)))
                                      (_
                                       (babel-response (org-escape-code-in-string
-                                                       (if (not (consp (car-safe response)))
-                                                           (s-join "" response)
-                                                         (org-assistant--json-encode-pretty-print response)))))))))))
+                                                       (if (stringp response)
+                                                           response
+                                                         (if (not (consp (car-safe response)))
+                                                             (s-join "" response)
+                                                           (org-assistant--json-encode-pretty-print response))))))))))))
          (when (buffer-live-p ,buffer-var) (with-current-buffer ,buffer-var (force-mode-line-update)))
          (with-current-buffer ,buffer-var
            (push ,replacement-var org-assistant--inflight-request))
@@ -352,24 +354,50 @@ ARGS is expected to be a plist with the following keys:
 :method The HTTP Method
 :headers Defaults to (org-assistant--default-headers) if not set
 :json See `org-assistant--json-encode'."
-  (-let [(&plist :url :method :headers :json) args]
+  (-let [(&plist :url :method :headers :request-id :json) args]
     (or url (error "Url must be set %S" args))
     (or method (error "Method must be set %S" args))
     `(lambda ()
-       (deferred:process-shell
-        (s-join " "
-                (->>
-                 (append
-                  (list "curl" (org-assistant-chat-endpoint))
-                  (cl-loop for (header . value) in (or ,headers (org-assistant--default-headers))
-                           append (list "-H" (concat "'" header ":" value "'")))
-                  (list "-X" (shell-quote-argument ,method))
-                  (-some--> ,json
-                    (let ((file (make-temp-file "json")))
-                      (with-temp-file file
-                        (insert (org-assistant--json-encode it)))
-                      (list "--json" (concat "@" file))))
-                  nil)))))))
+       (let* ((promise (deferred:new)) 
+              (shell-buffer (generate-new-buffer " *org-assistant-request*"))
+              (callback
+               (lambda ()
+                 (let ((process
+                        (start-process-shell-command
+                         (concat "curl " request-id)
+                         shell-buffer
+                         (s-join " "
+                                 (->>
+                                  (append
+                                   (list "curl" (org-assistant-chat-endpoint))
+                                   (cl-loop for (header . value) in (or ,headers (org-assistant--default-headers))
+                                            append (list "-H" (concat "'" header ":" value "'")))
+                                   (list "-X" (shell-quote-argument ,method))
+                                   (-some--> ,json
+                                     (let ((file (make-temp-file "json")))
+                                       (with-temp-file file
+                                         (insert (org-assistant--json-encode it)))
+                                       (list "--json" (concat "@" file))))
+                                   nil))))))
+                   (set-process-sentinel
+                    process
+                    (lambda (process status)
+                      (run-at-time
+                       nil nil
+                       (lambda ()
+                         (cond
+                          ((not (string= (string-trim status) "finished"))
+                           (deferred:errorback-post promise status)
+                           t)
+                          ((not (buffer-live-p shell-buffer))
+                           (deferred:errorback-post promise (concat "Buffer not live" (buffer-name shell-buffer)))
+                           t)
+                          (t
+                           (with-current-buffer shell-buffer
+                             (deferred:callback-post promise
+                                                     (buffer-string)))))))))))))
+         (run-at-time nil nil callback)
+         promise))))
 
 (defmacro org-assistant--join-endpoint (domain path)
   "Validate and return joined DOMAIN and PATH."
@@ -656,7 +684,7 @@ conversation."
 REQUEST-ID is used to keep track of the request for later.
 Return a deferred object representing the completion of the
 request."
-  (let* ((promise (deferred:new (lambda (arg) arg)))
+  (let* ((promise (deferred:new))
          (job-with-promise
           (lambda ()
             (let ((promise promise))
@@ -665,9 +693,10 @@ request."
                (org-assistant--deferred-decode-response it)
                (deferred:nextc it (lambda (result)
                                     (prog1 t
-                                      ;; TODO: Follow up with deferred does not call the promise if return directly:
-                                      ;; (deferred:callback-post promise result)
-                                      (deferred:callback-post promise result)))))))))
+                                      (deferred:callback-post promise result))))
+               (deferred:error it (lambda (error)
+                                    (deferred:errorback-post promise error)
+                                    "SUPPRESSED")))))))
     (if (>= (length org-assistant--active-request) org-assistant-parallelism)
         (setq org-assistant--request-queue (append org-assistant--request-queue (list (cons request-id job-with-promise)) nil))
       (org-assistant--queue-request-execute job-with-promise))
@@ -682,6 +711,7 @@ request."
   (org-assistant--queue-request
    request-id
    (org-assistant--request-lambda
+    :request-id request-id
     :url (org-assistant-image-endpoint)
     :method "POST"
     :json `(("response_format" . "b64_json")
@@ -708,6 +738,7 @@ request."
   (org-assistant--queue-request
    request-id
    (org-assistant--request-lambda
+    :request-id request-id
     :url (org-assistant-chat-endpoint)
     :method "POST"
     :json `(("model" . ,org-assistant-model)
@@ -728,6 +759,7 @@ request."
   (org-assistant--queue-request
    request-id
    (org-assistant--request-lambda
+    :request-id request-id
     :url (org-assistant-models-endpoint)
     :method "GET")))
 
@@ -748,15 +780,12 @@ Return nil."
   (prog1 nil
     (deferred:$
      (deferred:next (lambda (&rest _) (funcall job)))
-     (deferred:error it (lambda (&rest arg)
-                          (message "%S" arg)
-                          "Suppressed since logged elsewhere"))
+     (deferred:error it (lambda (error)
+                          "SUPPRESSED"))
      (deferred:nextc
       it
       (lambda (result)
         (prog1 result
-          org-assistant--inflight-request
-          org-assistant--request-queue-active-p
           (-some--> (pop org-assistant--request-queue)
             (org-assistant--queue-request-execute (cdr it))))))
      (deferred:nextc it (lambda (&rest arg) arg)))
