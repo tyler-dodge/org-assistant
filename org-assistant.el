@@ -348,6 +348,25 @@ later substituted by `org-assistant'."
            (push ,replacement-var org-assistant--inflight-request))
          ,replacement-var)))
 
+(defmacro org-assistant--request-lambda (&rest args)
+  "Macro for generating a queueable request lambda.
+
+Intended for use with `org-assistant--queue-request'.
+
+ARGS is expected to be a plist with the following keys:
+:url The endpoint
+:method The HTTP Method
+:headers Defaults to (org-assistant--default-headers) if not set
+:json See `org-assistant--json-encode'."
+  (-let [(&plist :url :method :headers :json) args]
+    (or url (error "Url must be set %S" args))
+    (or method (error "Method must be set %S" args))
+    `(lambda ()
+       (let ((url-request-extra-headers (or ,headers (org-assistant--default-headers)))
+             (url-request-method ,method)
+             (url-request-data (-some-> ,json org-assistant--json-encode)))
+         (deferred:url-retrieve ,url)))))
+
 (defmacro org-assistant--join-endpoint (domain path)
   "Validate and return joined DOMAIN and PATH."
   `(prog1 (concat ,domain ,path)
@@ -693,24 +712,7 @@ request."
                             ("role" . ,(symbol-name (car it)))))
                    (vconcat)))))))
 
-(defmacro org-assistant--request-lambda (&rest args)
-  "Macro for generating a queueable request lambda.
 
-Intended for use with `org-assistant--queue-request'.
-
-ARGS is expected to be a plist with the following keys:
-:url The endpoint
-:method The HTTP Method
-:headers Defaults to (org-assistant--default-headers) if not set
-:json See `org-assistant--json-encode'."
-  (-let [(&plist :url :method :headers :json) args]
-    (or url (error "Url must be set %S" args))
-    (or method (error "Method must be set %S" args))
-    `(lambda ()
-       (let ((url-request-extra-headers (or ,headers (org-assistant--default-headers)))
-             (url-request-method ,method)
-             (url-request-data (-some-> ,json org-assistant--json-encode)))
-         (deferred:url-retrieve ,url)))))
 
 (defun org-assistant--queue-list-models-request (request-id)
   "Execute or queue the `org-assistant' list-models request.
