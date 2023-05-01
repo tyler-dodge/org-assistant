@@ -1,12 +1,10 @@
-# org-assistant.el
+# org-assistant.el -  Org babel extension for Chat Assistant APIs
 [![License](https://img.shields.io/badge/license-GPL_3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
 [![MELPA](https://melpa.org/packages/org-assistant-badge.svg)](https://melpa.org/#/org-assistant)
 [![Version](https://img.shields.io/github/v/tag/tyler-dodge/org-assistant)](https://github.com/tyler-dodge/org-assistant/releases)
 
 
 ---
-
- Org babel extension for Chat Assistant APIs
 
 org-assistant provides support for accessing chat APIs such as
 ChatGPT in the context of an org notebook.
@@ -17,7 +15,7 @@ Org-assistant is available on [MELPA](http://melpa.org/#/org-assistant)
 
 <kbd>M-x</kbd> 'package-install' <kbd>[RET]</kbd> 'org-assistant' <kbd>[RET]</kbd>
 
-## Overview
+## Usage
 
 It provides a function named org-assistant that serves as
 entrypoint for displaying an org assistant buffer.  Also, it can be
