@@ -481,7 +481,7 @@ ARGS is expected to be a plist with the following keys:
                                        (let ((file (make-temp-file "json")))
                                          (with-temp-file file
                                            (insert (org-assistant--json-encode it)))
-                                         (list "--json" (concat "@" file))))
+                                         (list "--data" (concat "@" file))))
                                      nil))))))
                      (puthash ,request-id-var process org-assistant--request-processes-ht)
                      (set-process-sentinel
@@ -849,7 +849,8 @@ request."
                                 (if (stringp org-assistant-auth-function)
                                     org-assistant-auth-function
                                   (funcall org-assistant-auth-function))))
-    ("Content-Type" . "application/json; charset=utf-8")))
+    ("Content-Type" . "application/json; charset=utf-8")
+    ("Accept" . "application/json")))
 
 (defun org-assistant--queue-chat-request (request-id blocks)
   "Execute or queue the `org-assistant' request for BLOCKS.
