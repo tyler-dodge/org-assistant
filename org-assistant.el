@@ -960,8 +960,9 @@ Return nil."
                          (kill-process it)
                          (remhash uuid org-assistant--request-processes-ht)
                          (setq org-assistant--inflight-request
-                               (--filter (not (string= it uuid)) org-assistant--inflight-request))
-                         (forward-line 1))))))))))
+                               (--filter (not (string= it uuid)) org-assistant--inflight-request))))
+                     (forward-line 1))))))))
+
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
