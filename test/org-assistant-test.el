@@ -238,18 +238,20 @@ C-response
                                           (org-assistant--json-encode '(("choices" . [(("message" ("content" . "TEST")))]))))))
               (should (string= url (org-assistant-chat-endpoint)))
               (should (string= method "POST"))
-              (let ((json (org-assistant--json-decode
-                           (with-current-buffer (find-file-noselect (substring (cadr (plist-get args :body)) 1))
-                             (buffer-string)))))
+              (let ((json
+                     (sort (org-assistant--json-decode
+                            (with-current-buffer (find-file-noselect (substring (cadr (plist-get args :body)) 1))
+                              (buffer-string)))
+                           (lambda (lhs rhs) (string> (symbol-name (car lhs)) (symbol-name (car rhs)))))))
                 (should (equal json
-                               '((messages . [((content . "System Prompt") (role . "system"))
+                               '((temperature . 1)
+                                 (stop . "abc")
+                                 (model . "gpt-3.5-turbo")
+                                 (messages . [((content . "System Prompt") (role . "system"))
                                               ((content . "A <<substitution-A>>") (role . "user"))
                                               ((content . "A-response") (role . "assistant"))
                                               ((content . "C") (role . "user"))
-                                              ((content . "C-response") (role . "assistant"))])
-                                 (stop . "abc")
-                                 (temperature . 1)
-                                 (model . "gpt-3.5-turbo"))))
+                                              ((content . "C-response") (role . "assistant"))]))))
                 (should (org-assistant--json-encode json))
                 (make-process
                  :name "org-assistant-json-echo"

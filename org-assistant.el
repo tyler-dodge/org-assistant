@@ -255,11 +255,24 @@ presence-penalty
 frequency-penalty
 logit-bias
 user
-Should be a alist like '((max-tokens . 10) (user . \"emacs\"))."
+Should be a alist like '((max_tokens . 10) (user . \"emacs\")).
+
+This can be overriden on a per-src block basis by specifying the
+:params argument.
+
+See https://platform.openai.com/docs/api-reference/chat/create
+for reference.
+
+<example>
+#+BEGIN_SRC assistant :params '((max_tokens . 10) (user . \"emacs\"))
+Hi
+#+END_SRC
+</example>"
   :group 'org-assistant
   :type '(alist))
 
-(defcustom org-assistant-execute-curl-process-function #'org-assistant--execute-curl-shell-command-request
+(defcustom org-assistant-execute-curl-process-function
+  #'org-assistant--execute-curl-shell-command-request
   "Function used to execute the shell command for `org-assistant'.
 See `org-assistant--execute-curl-shell-command-request' for expected arguments."
   :group 'org-assistant
@@ -393,11 +406,14 @@ later substituted by `org-assistant'."
    (debug t)
    (indent 0))
   (let ((buffer-var (make-symbol "buffer"))
+        (start-pt-var (make-symbol "start-pt"))
+        (pt-temp-var (make-symbol "temp-pt"))
         (insert-prompt-var (make-symbol "insert-prompt"))
         (error-var (make-symbol "error"))
         (replacement-var (make-symbol "replacement")))
     `(let* ((,buffer-var (current-buffer))
             (,replacement-var (uuidgen-4))
+            (,start-pt-var (point))
             (org-assistant--request-id ,replacement-var))
          (cl-flet ((babel-response (message &optional response-type)
                      (run-at-time
@@ -408,46 +424,49 @@ later substituted by `org-assistant'."
                           (setq org-assistant--inflight-request
                                 (--filter (not (string= it ,replacement-var)) org-assistant--inflight-request))
                           (with-current-buffer ,buffer-var
-                            (-some-->
-                                (save-mark-and-excursion
-                                  (goto-char (point-min))
-                                  (when (re-search-forward (rx (literal ,replacement-var))
-                                                           nil t)
-                                    (pcase response-type
-                                      ('file-list
-                                       (replace-match
-                                        (string-join (--map (format "%s" it) message) "\n")
-                                        nil t)
-                                       (goto-char (match-end 0))
-                                       (forward-line 0)
-                                       (cl-loop with first = t
-                                                while (looking-at (rx (literal (car message)) line-end))
-                                                do
-                                                (if first
-                                                    (progn
-                                                      (forward-line 1)
-                                                      (setq first nil))
-                                                  (replace-match ""))))
-                                      (_
-                                       (let ((,insert-prompt-var
-                                              (and
-                                               (not org-assistant--request-queue-active-p)
-                                               (not
-                                                (save-match-data
-                                                  (save-mark-and-excursion
-                                                    (re-search-forward org-assistant--begin-src-regexp nil t)))))))
-                                         (save-excursion
-                                           (replace-match (format "#+BEGIN_SRC assistant :sender assistant
+                            (let ((,pt-temp-var (point)))
+                              (-some-->
+                                  (save-mark-and-excursion
+                                    (goto-char (point-min))
+                                    (when (re-search-forward (rx (literal ,replacement-var))
+                                                             nil t)
+                                      (pcase response-type
+                                        ('file-list
+                                         (replace-match
+                                          (string-join (--map (format "%s" it) message) "\n")
+                                          nil t)
+                                         (goto-char (match-end 0))
+                                         (forward-line 0)
+                                         (cl-loop with first = t
+                                                  while (looking-at (rx (literal (car message)) line-end))
+                                                  do
+                                                  (if first
+                                                      (progn
+                                                        (forward-line 1)
+                                                        (setq first nil))
+                                                    (replace-match ""))))
+                                        (_
+                                         (let ((,insert-prompt-var
+                                                (and
+                                                 (not org-assistant--request-queue-active-p)
+                                                 (eq ,pt-temp-var ,start-pt-var)
+                                                 (not
+                                                  (save-match-data
+                                                    (save-mark-and-excursion
+                                                      (and
+                                                       (re-search-forward org-assistant--begin-src-regexp nil t))))))))
+                                           (save-excursion
+                                             (replace-match (format "#+BEGIN_SRC assistant :sender assistant
 %s
-#+END_SRC%s" message (if ,insert-prompt-var "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" "")) nil t))
-                                         (when ,insert-prompt-var (re-search-backward org-assistant--begin-src-regexp)
-                                               (forward-line 1)
-                                               (point)))))))
-                              (progn
-                                (unless org-assistant--request-queue-active-p
-                                  (goto-char it)
-                                  (cl-loop for window in (get-buffer-window-list (current-buffer))
-                                           do (set-window-point window it)))))))
+#+END_SRC%s" message (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" "")) nil t))
+                                           (when ,insert-prompt-var (re-search-backward org-assistant--begin-src-regexp)
+                                                 (forward-line 1)
+                                                 (point)))))))
+                                (progn
+                                  (unless org-assistant--request-queue-active-p
+                                    (goto-char it)
+                                    (cl-loop for window in (get-buffer-window-list (current-buffer))
+                                             do (set-window-point window it))))))))
                         (unless (or org-assistant--request-queue
                                     org-assistant--inflight-request)
                           (setq org-assistant--request-queue-active-p nil))))))
@@ -551,7 +570,11 @@ ARGS is expected to be a plist with the following keys:
 
                            (remhash ,request-id-var org-assistant--request-processes-ht)
                            (kill-buffer shell-buffer)))))))))
-           (run-at-time nil nil callback)
+           (run-at-time nil nil (lambda ()
+                                  (condition-case err
+                                      (funcall callback)
+                                    (error (deferred:errorback-post promise err))
+                                    (user-error (deferred:errorback-post promise err)))))
            promise)))))
 
 (defmacro org-assistant--join-endpoint (domain path)
@@ -572,6 +595,13 @@ instead of evaluating.
 
 If :list-models is set, the `org-assistant-models-endpoint'
 will be called instead.
+
+:params can be set to a list like
+'((max_tokens . 1)
+  (stop . \"stop\")).
+
+See https://platform.openai.com/docs/api-reference/chat/create
+for parameters.
 
 TEXT must be empty if :list-models is set.
 
@@ -862,7 +892,10 @@ request."
           (lambda ()
             (let ((promise promise))
               (deferred:$
-               (funcall job)
+               (condition-case err
+                   (funcall job)
+                 (user-error (deferred:errorback-post (deferred:new) err))
+                 (error (deferred:errorback (deferred:new) err)))
                (org-assistant--deferred-decode-response it)
                (deferred:nextc it (lambda (result)
                                     (prog1 t
@@ -905,6 +938,14 @@ request."
     ("Content-Type" . "application/json; charset=utf-8")
     ("Accept" . "application/json")))
 
+(defun org-assistant--validate-parameters (parameters)
+  "Validate that PARAMETERS are valid and emit error messages if not."
+  (--doto (org-assistant--dedupe-alist parameters)
+    (unless (or (not it) (and (listp it) (consp (car it))))
+      (user-error "`org-assistant-chat-extra-parameters-alist' must be an alist: %S" it))
+    (when (--first (consp (cdr it)) parameters)
+      (user-error "a-list must be all cons cells.  You may have forgotten the dot.  %S" it))))
+
 (defun org-assistant--queue-chat-request (request-id block-params blocks)
   "Execute or queue the `org-assistant' request for BLOCKS.
 
@@ -921,18 +962,16 @@ request."
      :method "POST"
      :json
      `(("model" . ,org-assistant-model)
-             ,@(--doto org-assistant-chat-extra-parameters-alist
-                 (unless (or (not it) (and (listp it) (consp (car it))))
-                   (user-error "`org-assistant-chat-extra-parameters-alist' must be an alist: %S" it)))
-             ,@block-params
-             ("messages" .
-              ,(->> blocks
-                    (--map `(("content" . ,(cdr it))
-                             ("role" . ,(symbol-name (car it)))))
-                    (vconcat))))))))
+       ,@(org-assistant--validate-parameters org-assistant-chat-extra-parameters-alist)
+       ,@(org-assistant--validate-parameters block-params)
+       ("messages" .
+        ,(->> blocks
+              (--map `(("content" . ,(cdr it))
+                       ("role" . ,(symbol-name (car it)))))
+              (vconcat))))))))
 
 (defun org-assistant--dedupe-alist (alist)
-  "Dedupe the keys in the alist"
+  "Dedupe the keys in the ALIST."
   (ht->alist (ht<-alist (reverse alist))))
 
 
