@@ -29,16 +29,6 @@
     cd {{project_root}}
 #+END_SRC
 
-** Test 27.1                                                            :PTY:
-#+BEGIN_SRC compile-queue
-    nix-build -A test.emacs_27_1
-#+END_SRC
-
-** Test 27.2                                                            :PTY:
-#+BEGIN_SRC compile-queue
-    nix-build -A test.emacs_27_2
-#+END_SRC
-
 ** Test 28.1                                                            :PTY:
 #+BEGIN_SRC compile-queue
     nix-build -A test.emacs_28_1
