@@ -60,9 +60,9 @@ Hi
 #+END_SRC
 
 AI Response
-#+BEGIN_EXAMPLE
+#+BEGIN_SRC assistant :sender assistant
 Hello! How can I assist you today?
-#+END_EXAMPLE
+#+END_SRC
 ```
 
 When the output is set to png file, the image generation APIs are
@@ -82,13 +82,13 @@ You can introspect the sent conversation using the :echo flag.
 ```
 * Branching Echo
 #+BEGIN_SRC ?
-This is the user. Repeat verbatim only: "This is the system"
+This is the user.  Repeat verbatim only: "This is the system"
 #+END_SRC
 
 #+RESULTS:
-#+BEGIN_EXAMPLE
+#+BEGIN_SRC assistant :sender assistant
 "This is the system"
-#+END_EXAMPLE
+#+END_SRC
 
 ** Branch A
 #+BEGIN_SRC ? :echo
@@ -96,11 +96,11 @@ Response A
 #+END_SRC
 
 #+RESULTS:
-#+BEGIN_EXAMPLE
-(user . "This is the user. Repeat verbatim only: \"This is the system\"")
+#+BEGIN_SRC assistant :sender assistant
+(user . "This is the user.  Repeat verbatim only: \"This is the system\"")
 (assistant . "\"This is the system\"")
 (user . "Response A")
-#+END_EXAMPLE
+#+END_SRC
 
 ** Branch B
 #+BEGIN_SRC ? :echo
@@ -108,11 +108,11 @@ Response B
 #+END_SRC
 
 #+RESULTS:
-#+BEGIN_EXAMPLE
-(user . "This is the user. Repeat verbatim only: \"This is the system\"")
+#+BEGIN_SRC assistant :sender assistant
+(user . "This is the user.  Repeat verbatim only: \"This is the system\"")
 (assistant . "\"This is the system\"")
 (user . "Response B")
-#+END_EXAMPLE
+#+END_SRC
 ```
 
 ## Comparison With Other AI Packages
@@ -146,6 +146,17 @@ Prompt the user for an initial prompt for the assistant.
 
 Then display a window with the buffer containing the response.
 
+## org-assistant--execute-curl-shell-command-request
+Execute a curl shell command for ‘org-assistant’.
+URL is the endpoint called from ‘org-assistant’.
+METHOD is the Http method used in the request.
+REQUEST-ID is the request id, used for debugging purposes.
+BUFFER is the buffer that the process should output to
+HEADERS are the headers to send in the request
+BODY is a JSON object encoded as a string.
+
+(fn &amp;key URL METHOD REQUEST-ID BUFFER HEADERS BODY)
+
 ## org-babel-execute:assistant
 Execute an ‘org-assistant’ in an org-babel context.
 
@@ -155,6 +166,13 @@ instead of evaluating.
 
 If :list-models is set, the ‘org-assistant-models-endpoint’
 will be called instead.
+
+:params can be set to a list like
+’((max_tokens . 1)
+  (stop . &quot;stop&quot;)).
+
+See https://platform.openai.com/docs/api-reference/chat/create
+for parameters.
 
 TEXT must be empty if :list-models is set.
 
@@ -171,9 +189,9 @@ The response from the assistant will be in the example block
 following:
 
 ```
-#+BEGIN_EXAMPLE
+#+BEGIN_SRC assistant :sender assistant
 Response
-#+END_EXAMPLE
+#+END_SRC
 ```
 
 All of the messages that are in the same branch of the org tree are
@@ -184,9 +202,9 @@ included in the request to the assistant.
 Hi
 #+END_SRC
 
-#+BEGIN_EXAMPLE
+#+BEGIN_SRC assistant :sender assistant
 Response
-#+END_EXAMPLE
+#+END_SRC
 
 #+BEGIN_SRC assistant
 What’s up?
@@ -217,26 +235,26 @@ Only messages in the same branch will be included:
 Hi
 #+END_SRC
 
-#+BEGIN_EXAMPLE
+#+BEGIN_SRC assistant :sender assistant
 Response
-#+END_EXAMPLE
+#+END_SRC
 ** Branch A
 #+BEGIN_SRC assistant
 Branch A
 #+END_SRC
 
-#+BEGIN_EXAMPLE
+#+BEGIN_SRC assistant :sender assistant
 Branch A Response
-#+END_EXAMPLE
+#+END_SRC
 
 ** Branch B
 #+BEGIN_SRC assistant
 Branch B
 #+END_SRC
 
-#+BEGIN_EXAMPLE
+#+BEGIN_SRC assistant :sender assistant
 Branch B Response
-#+END_EXAMPLE
+#+END_SRC
 ```
 If you ran Ctrl-C Ctrl-C on Branch B’s src block the conversation sent
 to the endpoint would be:
@@ -312,6 +330,38 @@ The endpoint used for the assistant.
 
 * [org-assistant-parallelism](#org-assistant-parallelism)<a name="org-assistant-parallelism"></a>:
 The max inflight requests to send with `org-assistant` at once.
+
+* [org-assistant-chat-extra-parameters-alist](#org-assistant-chat-extra-parameters-alist)<a name="org-assistant-chat-extra-parameters-alist"></a>:
+Extra parameters to be sent with a chat request.
+
+Known keys are:
+temperature
+top_p
+n
+stream
+stop
+max-tokens
+presence-penalty
+frequency-penalty
+logit-bias
+user
+Should be a alist like '((max_tokens . 10) (user . "emacs")).
+
+This can be overriden on a per-src block basis by specifying the
+:params argument.
+
+See https://platform.openai.com/docs/api-reference/chat/create
+for reference.
+
+```
+#+BEGIN_SRC assistant :params '((max_tokens . 10) (user . "emacs"))
+Hi
+#+END_SRC
+```
+
+* [org-assistant-execute-curl-process-function](#org-assistant-execute-curl-process-function)<a name="org-assistant-execute-curl-process-function"></a>:
+Function used to execute the shell command for `org-assistant`.
+See `org-assistant--execute-curl-shell-command-request` for expected arguments.
 
 
 ## Contributing
