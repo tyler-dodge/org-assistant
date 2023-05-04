@@ -417,7 +417,7 @@ later substituted by `org-assistant'."
         (error-var (make-symbol "error"))
         (replacement-var (make-symbol "replacement")))
     `(let* ((,buffer-var (current-buffer))
-            (,replacement-var (uuidgen-4))
+            (,replacement-var (org-assistant--generate-replacement-string))
             (,start-pt-var (point))
             (org-assistant--request-id ,replacement-var))
          (cl-flet ((babel-response (message &optional response-type streaming)
@@ -463,14 +463,18 @@ later substituted by `org-assistant'."
                                                       (and
                                                        (re-search-forward org-assistant--begin-src-regexp nil t))))))))
                                            (save-excursion
+                                             (goto-char (match-beginning 0))
+                                             (delete-region (match-beginning 0) (match-end 0))
                                              (if ,in-src-block-var
-                                                 (replace-match (concat message
-                                                                        (when streaming ,replacement-var)) nil t)
-                                               (replace-match (format "#+BEGIN_SRC assistant :sender assistant
-%s
-#+END_SRC%s"
-                                                                      (concat message (when streaming ,replacement-var))
-                                                                      (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" "")) nil t)))
+                                                 (progn
+                                                   (when (looking-back "\n") (replace-match ""))
+                                                   (insert (concat message (when streaming (concat "\n" ,replacement-var)))))
+                                               (insert (concat "#+BEGIN_SRC assistant :sender assistant
+"
+                                                               (concat message (when streaming ,replacement-var))
+                                                               "
+#+END_SRC"
+                                                               (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" "")))))
                                            (when ,insert-prompt-var (re-search-backward org-assistant--begin-src-regexp)
                                                  (forward-line 1)
                                                  (point)))))))
@@ -1088,8 +1092,15 @@ Return nil."
           (goto-char (match-beginning 0))
           (forward-line 1)
           (cl-flet ((uuid-at-point ()
-                      (when (looking-at (rx line-start (* whitespace) (+ (any alphanumeric "-")) (* whitespace) line-end))
-                        (string-trim (match-string 0)))))
+                      (cond
+                       ((looking-at (rx line-start (* whitespace) (+ (any alphanumeric "-")) (* whitespace) line-end))
+                        (string-trim (match-string 0)))
+                       (t
+                        (when (re-search-forward
+                               (rx line-start (* whitespace) (+ (any alphanumeric "-")) (* whitespace) line-end)
+                               (org-babel-result-end)
+                               t)
+                          (get-text-property (match-end 0) 'replacement))))))
             (cl-loop with uuid = nil
                      while (setq uuid (uuid-at-point))
                      do
@@ -1131,6 +1142,10 @@ Sets point to the last unparsed line on completion."
                    )
         (error (forward-line -1))))
     (reverse list)))
+
+(defun org-assistant--generate-replacement-string ()
+  "Return a replacement token for the async process."
+  (uuidgen-4))
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
