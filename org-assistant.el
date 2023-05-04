@@ -288,6 +288,10 @@ This should match `org-babel-default-header-args:?'")
   "Extra args so that org babel renders the results correctly.
 This should match `org-babel-default-header-args:assistant'")
 
+(defvar-local org-assistant--process-json-read-pt nil
+  "Marker that represents the end of the last read output.
+For org-assisant process buffers.")
+
 (defvar org-assistant-history nil
   "History variable for `org-assistant'.")
 
@@ -407,6 +411,7 @@ later substituted by `org-assistant'."
    (indent 0))
   (let ((buffer-var (make-symbol "buffer"))
         (start-pt-var (make-symbol "start-pt"))
+        (in-src-block-var (make-symbol "in-src-block"))
         (pt-temp-var (make-symbol "temp-pt"))
         (insert-prompt-var (make-symbol "insert-prompt"))
         (error-var (make-symbol "error"))
@@ -415,7 +420,7 @@ later substituted by `org-assistant'."
             (,replacement-var (uuidgen-4))
             (,start-pt-var (point))
             (org-assistant--request-id ,replacement-var))
-         (cl-flet ((babel-response (message &optional response-type)
+         (cl-flet ((babel-response (message &optional response-type streaming)
                      (run-at-time
                       nil nil
                       (lambda ()
@@ -446,8 +451,10 @@ later substituted by `org-assistant'."
                                                         (setq first nil))
                                                     (replace-match ""))))
                                         (_
-                                         (let ((,insert-prompt-var
+                                         (let* ((,in-src-block-var (save-match-data (org-in-src-block-p)))
+                                               (,insert-prompt-var
                                                 (and
+                                                 (not ,in-src-block-var)
                                                  (not org-assistant--request-queue-active-p)
                                                  (eq ,pt-temp-var ,start-pt-var)
                                                  (not
@@ -456,9 +463,14 @@ later substituted by `org-assistant'."
                                                       (and
                                                        (re-search-forward org-assistant--begin-src-regexp nil t))))))))
                                            (save-excursion
-                                             (replace-match (format "#+BEGIN_SRC assistant :sender assistant
+                                             (if ,in-src-block-var
+                                                 (replace-match (concat message
+                                                                        (when streaming ,replacement-var)) nil t)
+                                               (replace-match (format "#+BEGIN_SRC assistant :sender assistant
 %s
-#+END_SRC%s" message (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" "")) nil t))
+#+END_SRC%s"
+                                                                      (concat message (when streaming ,replacement-var))
+                                                                      (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" "")) nil t)))
                                            (when ,insert-prompt-var (re-search-backward org-assistant--begin-src-regexp)
                                                  (forward-line 1)
                                                  (point)))))))
@@ -510,6 +522,7 @@ BODY is a JSON object encoded as a string."
            (->>
             (append
              (list org-assistant-curl-command url)
+             (list "--no-buffer")
              (cl-loop for (header . value) in headers
                       append (list "-H" (concat header ":" (shell-quote-argument value))))
              (list "-X" (shell-quote-argument method))
@@ -526,12 +539,14 @@ ARGS is expected to be a plist with the following keys:
 :method The HTTP Method
 :headers Defaults to (org-assistant--default-headers) if not set
 :json See `org-assistant--json-encode'."
-  (-let [(&plist :url :method :headers :request-id :json) args]
+  (-let [(&plist :url :stream :method :headers :request-id :json) args]
     (or url (error "Url must be set %S" args))
     (or method (error "Method must be set %S" args))
-    (let ((request-id-var (make-symbol "request-id")))
+    (let ((request-id-var (make-symbol "request-id"))
+          (stream-var (make-symbol "stream")))
       `(lambda ()
          (let* ((promise (deferred:new))
+                (,stream-var ,stream)
                 (,request-id-var ,request-id)
                 (shell-buffer (generate-new-buffer " *org-assistant-request*"))
                 (callback
@@ -550,9 +565,29 @@ ARGS is expected to be a plist with the following keys:
                                        (insert (org-assistant--json-encode it)))
                                      (list "--data" (concat "@" file)))))))
                      (puthash ,request-id-var process org-assistant--request-processes-ht)
+                     (set-process-filter
+                      process
+                      (lambda (process text)
+                        (prog1 (internal-default-process-filter process text)
+                          (with-current-buffer (process-buffer process)
+                            (save-match-data
+                              (save-excursion
+                                (unless org-assistant--process-json-read-pt
+                                  (setq-local org-assistant--process-json-read-pt (point-min)))
+                                (goto-char org-assistant--process-json-read-pt)
+                                (let* ((json-objects (org-assistant--parse-stream-json-after-point))
+                                       (end-of-parse-pt (point)))
+                                  (run-at-time
+                                   nil nil
+                                   (lambda ()
+                                     (cl-loop for json in json-objects
+                                              do
+                                              (funcall ,stream-var json))))
+                                  (when json-objects
+                                    (setq-local org-assistant--process-json-read-pt end-of-parse-pt)))))))))
                      (set-process-sentinel
                       process
-                      (lambda (_ status)
+                      (lambda (process status)
                         (run-at-time
                          nil nil
                          (lambda ()
@@ -747,16 +782,11 @@ An image of the GNU mascot
 
        (t (org-assistant-org-babel-async-response
             (deferred:$
-             (org-assistant--queue-chat-request org-assistant--request-id (alist-get :params params) blocks)
-             (deferred:nextc
-              it
-              (lambda (response)
-                (cl-loop for choice across (alist-get 'choices response)
-                         collect
-                         (-some-->
-                             (->> choice
-                                  (alist-get 'message)
-                                  (alist-get 'content))))))))))))))
+             (org-assistant--queue-chat-request org-assistant--request-id
+                                                (lambda (json) (babel-response json nil t))
+                                                (alist-get :params params) blocks)
+             (deferred:nextc it (lambda (response)
+                                  (if (listp response) (format "%S" response) "")))))))))))
 
 ;;;###autoload
 (defun org-babel-execute:? (&rest args)
@@ -896,7 +926,6 @@ request."
                    (funcall job)
                  (user-error (deferred:errorback-post (deferred:new) err))
                  (error (deferred:errorback (deferred:new) err)))
-               (org-assistant--deferred-decode-response it)
                (deferred:nextc it (lambda (result)
                                     (prog1 t
                                       (deferred:callback-post promise result))))
@@ -946,7 +975,7 @@ request."
     (when (--first (consp (cdr it)) parameters)
       (user-error "a-list must be all cons cells.  You may have forgotten the dot.  %S" it))))
 
-(defun org-assistant--queue-chat-request (request-id block-params blocks)
+(defun org-assistant--queue-chat-request (request-id babel-response block-params blocks)
   "Execute or queue the `org-assistant' request for BLOCKS.
 
 BLOCK-PARAMS contains the params of the calling block.
@@ -960,8 +989,17 @@ request."
      :request-id request-id
      :url (org-assistant-chat-endpoint)
      :method "POST"
+     :stream (lambda (diff)
+               (if (eq diff 'done)
+                   nil ;; Do nothing, the process also ends so handle it there
+                 (-some--> (alist-get 'choices diff)
+                   (aref it 0)
+                   (alist-get 'delta it)
+                   (alist-get 'content it)
+                   (funcall babel-response it))))
      :json
      `(("model" . ,org-assistant-model)
+       (stream . t)
        ,@(org-assistant--validate-parameters org-assistant-chat-extra-parameters-alist)
        ,@(org-assistant--validate-parameters block-params)
        ("messages" .
@@ -1059,7 +1097,7 @@ Return nil."
                          (gethash uuid org-assistant--request-processes-ht)
                        (progn
                          (replace-match "")
-                         (kill-process it)
+                         (when (process-live-p it) (kill-process it))
                          (remhash uuid org-assistant--request-processes-ht)
                          (setq org-assistant--inflight-request
                                (--filter (not (string= it uuid)) org-assistant--inflight-request))))
@@ -1071,6 +1109,28 @@ Return nil."
     (org-babel-goto-src-block-head)
     (org-babel-parse-header-arguments
      (s-join " " (cddar (org-parse-arguments))))))
+
+(defun org-assistant--parse-stream-json-after-point ()
+  "Returns a list of the jsons after point.
+Sets point to the last unparsed line on completion."
+  (let ((list nil))
+    (forward-line 0)
+    (cl-block completed
+      (condition-case err
+          (cl-loop while (< (point) (point-max))
+                   do
+                   (progn
+                     (when (looking-at (rx "data:" (+ whitespace) "[DONE]"))
+                       (push 'done list)
+                       (forward-line 1)
+                       (cl-return-from completed))
+                     (when (looking-at (rx "data:" (* whitespace)))
+                       (goto-char (match-end 0))
+                       (push (json-read) list))
+                     (forward-line 1))
+                   )
+        (error (forward-line -1))))
+    (reverse list)))
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
