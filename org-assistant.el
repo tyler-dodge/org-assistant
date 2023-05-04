@@ -1,7 +1,7 @@
 ;;; org-assistant.el --- Org babel extension for Chat Assistant APIs -*- lexical-binding: t -*-
 
 ;; Author: Tyler Dodge (tyler@tdodge.consulting)
-;; Version: 1.0.1
+;; Version: 1.1
 ;; Keywords: convenience
 ;; Package-Requires: ((emacs "28.1") (uuidgen "1.2") (deferred "0.5.1") (s "1.12.0") (dash "2.19.1") (ht "0.9"))
 ;; URL: https://github.com/tyler-dodge/org-assistant
