@@ -235,6 +235,12 @@ See `org-assistant-endpoint' for the domain."
   :group 'org-assistant
   :type '(string))
 
+(defcustom org-assistant-response-completed-hook nil
+  "The hook called whenever a org-assistant request finishes executing.
+Called with the buffer and point set to the the end of the response."
+  :group 'org-assistant
+  :type 'hook)
+
 (defcustom org-assistant-parallelism 1
   "The max inflight requests to send with `org-assistant' at once."
   :group 'org-assistant
@@ -462,19 +468,31 @@ later substituted by `org-assistant'."
                                                     (save-mark-and-excursion
                                                       (and
                                                        (re-search-forward org-assistant--begin-src-regexp nil t))))))))
-                                           (save-excursion
-                                             (goto-char (match-beginning 0))
-                                             (delete-region (match-beginning 0) (match-end 0))
-                                             (if ,in-src-block-var
-                                                 (progn
-                                                   (when (looking-back "\n") (replace-match ""))
-                                                   (insert (concat message (when streaming (concat "\n" ,replacement-var)))))
-                                               (insert (concat "#+BEGIN_SRC assistant :sender assistant
+                                           (let ((hook-pt nil))
+                                             (save-excursion
+                                               (goto-char (match-beginning 0))
+                                               (delete-region (match-beginning 0) (match-end 0))
+                                               (if ,in-src-block-var
+                                                   (progn
+
+                                                     (when (looking-back "\n") (replace-match ""))
+                                                     (insert (concat message (when streaming (concat "\n" ,replacement-var))))
+                                                     (setq hook-pt (point)))
+                                                 (setq hook-pt (point))
+                                                 (insert (concat "#+BEGIN_SRC assistant :sender assistant
 "
-                                                               (concat message (when streaming ,replacement-var))
-                                                               "
+                                                                 (concat message (when streaming ,replacement-var))
+                                                                 "
 #+END_SRC"
-                                                               (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" "")))))
+                                                                 (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" "")))))
+                                             (unless streaming
+                                               (save-excursion
+                                                 (goto-char hook-pt)
+                                                 (cl-loop for hook in org-assistant-response-completed-hook
+                                                          do
+                                                          (save-match-data
+                                                            (save-excursion
+                                                              (funcall hook)))))))
                                            (when ,insert-prompt-var (re-search-backward org-assistant--begin-src-regexp)
                                                  (forward-line 1)
                                                  (point)))))))
@@ -581,34 +599,37 @@ ARGS is expected to be a plist with the following keys:
                                 (goto-char org-assistant--process-json-read-pt)
                                 (let* ((json-objects (org-assistant--parse-stream-json-after-point))
                                        (end-of-parse-pt (point)))
-                                  (run-at-time
-                                   nil nil
-                                   (lambda ()
-                                     (cl-loop for json in json-objects
-                                              do
-                                              (funcall ,stream-var json))))
+                                  (condition-case err
+                                      (cl-loop for json in json-objects
+                                               do
+                                               (funcall ,stream-var json))
+                                    (user-error (message "Failed to stream object %S" json))
+                                    (error (message "Failed to stream object %S" json)))
                                   (when json-objects
                                     (setq-local org-assistant--process-json-read-pt end-of-parse-pt)))))))))
-                     (set-process-sentinel
-                      process
-                      (lambda (process status)
-                        (run-at-time
-                         nil nil
-                         (lambda ()
-                           (cond
-                            ((not (string= (string-trim status) "finished"))
-                             (deferred:errorback-post promise status)
-                             t)
-                            ((not (buffer-live-p shell-buffer))
-                             (deferred:errorback-post promise (concat "Buffer not live" (buffer-name shell-buffer)))
-                             t)
-                            (t
-                             (with-current-buffer shell-buffer
-                               (deferred:callback-post promise
-                                                       (buffer-string)))))
+                     (let ((original-sentinel (process-sentinel process)))
+                       (set-process-sentinel
+                        process
+                        (lambda (process status)
+                          (run-at-time
+                           nil nil
+                           (lambda ()
+                             (cond
+                              ((not (string= (string-trim status) "finished"))
+                               (deferred:errorback-post promise status)
+                               t)
+                              ((not (buffer-live-p shell-buffer))
+                               (deferred:errorback-post promise (concat "Buffer not live" (buffer-name shell-buffer)))
+                               t)
+                              (t
+                               (with-current-buffer shell-buffer
+                                 (deferred:callback-post promise
+                                                         (buffer-string)))))
 
-                           (remhash ,request-id-var org-assistant--request-processes-ht)
-                           (kill-buffer shell-buffer)))))))))
+                             (remhash ,request-id-var org-assistant--request-processes-ht)
+                             (when (functionp original-sentinel)
+                               (funcall original-sentinel process status))
+                             (kill-buffer shell-buffer))))))))))
            (run-at-time nil nil (lambda ()
                                   (condition-case err
                                       (funcall callback)
@@ -814,75 +835,76 @@ conversation."
     (when (org-in-block-p (list "EXAMPLE"))
       (search-forward "#+END_EXAMPLE"))
     (let ((start-pt (point)))
-      (cl-loop
-       with has-prompt = nil
-       for block in
-       (reverse
-        (cl-loop
-         with first = t
-         while (if first
-                   (prog1 t
-                     (org-previous-visible-heading 1)
-                     (forward-line 0)
-                     (setq first nil))
-                 (org-up-heading-safe))
-         append
-         (-let [(range-start range-end) (list
-                                         (point)
-                                         (save-excursion
-                                           (org-next-visible-heading 1)
-                                           (point)))]
-           (goto-char range-start)
-           (save-excursion
-             (reverse
-              (cl-loop
-               while (re-search-forward (rx (or (regexp org-babel-src-block-regexp)
-                                                (regexp (rx "#+BEGIN_EXAMPLE"
-                                                            (*? anything)
-                                                            "#+END_EXAMPLE"))))
-                                        (min start-pt range-end) t)
-               if (save-excursion
-                    (save-match-data (goto-char (match-beginning 0))
-                                     (string-match-p
-                                      (rx (or (regexp org-assistant--begin-src-regexp)
-                                              (regexp org-assistant--begin-example-regexp)))
-                                      (thing-at-point 'line t))))
-               collect (let* ((match-start (match-beginning 0))
-                              (match-end (match-end 0))
-                              (message-type
-                               (progn
-                                 (goto-char match-start)
-                                 (let ((line (thing-at-point 'line t)))
-                                   (if (s-contains-p "BEGIN_EXAMPLE" line)
-                                       (if (save-excursion
-                                             (forward-line -1)
-                                             (s-contains-p "#+SYSTEM" (thing-at-point 'line t)))
-                                           'system
-                                         'assistant)
-                                     (pcase (alist-get :sender (org-assistant--org-src-arguments))
-                                       ("assistant" 'assistant)
-                                       ("system" 'system)
-                                       ((or "user" 'nil) 'user)
-                                       (sender (user-error "Unexpected value for :sender '%s'.
+      (org-assistant--coallesce-assistant-messages
+       (cl-loop
+        with has-prompt = nil
+        for block in
+        (reverse
+         (cl-loop
+          with first = t
+          while (if first
+                    (prog1 t
+                      (org-previous-visible-heading 1)
+                      (forward-line 0)
+                      (setq first nil))
+                  (org-up-heading-safe))
+          append
+          (-let [(range-start range-end) (list
+                                          (point)
+                                          (save-excursion
+                                            (org-next-visible-heading 1)
+                                            (point)))]
+            (goto-char range-start)
+            (save-excursion
+              (reverse
+               (cl-loop
+                while (re-search-forward (rx (or (regexp org-babel-src-block-regexp)
+                                                 (regexp (rx "#+BEGIN_EXAMPLE"
+                                                             (*? anything)
+                                                             "#+END_EXAMPLE"))))
+                                         (min start-pt range-end) t)
+                if (save-excursion
+                     (save-match-data (goto-char (match-beginning 0))
+                                      (string-match-p
+                                       (rx (or (regexp org-assistant--begin-src-regexp)
+                                               (regexp org-assistant--begin-example-regexp)))
+                                       (thing-at-point 'line t))))
+                collect (let* ((match-start (match-beginning 0))
+                               (match-end (match-end 0))
+                               (message-type
+                                (progn
+                                  (goto-char match-start)
+                                  (let ((line (thing-at-point 'line t)))
+                                    (if (s-contains-p "BEGIN_EXAMPLE" line)
+                                        (if (save-excursion
+                                              (forward-line -1)
+                                              (s-contains-p "#+SYSTEM" (thing-at-point 'line t)))
+                                            'system
+                                          'assistant)
+                                      (pcase (alist-get :sender (org-assistant--org-src-arguments))
+                                        ("assistant" 'assistant)
+                                        ("system" 'system)
+                                        ((or "user" 'nil) 'user)
+                                        (sender (user-error "Unexpected value for :sender '%s'.
 Should be either assistant, system, or user" sender))))))))
-                         (forward-line 1)
-                         (cons message-type
-                               (string-trim
-                                (org-unescape-code-in-string
-                                 (if (and noweb (eq message-type 'user))
-                                     (org-babel-expand-noweb-references)
-                                   (buffer-substring-no-properties
-                                    (point)
-                                    (save-excursion (goto-char match-end)
-                                                    (forward-line 0)
-                                                    (point))))))))))))))
-       collect
-       (if has-prompt
-           block
-           (if (eq (car block) 'user)
-               (prog1 block
-                 (setq has-prompt t))
-             (cons 'system (cdr block))))))))
+                          (forward-line 1)
+                          (cons message-type
+                                (string-trim-right
+                                 (org-unescape-code-in-string
+                                  (if (and noweb (eq message-type 'user))
+                                      (org-babel-expand-noweb-references)
+                                    (buffer-substring-no-properties
+                                     (point)
+                                     (save-excursion (goto-char match-end)
+                                                     (forward-line 0)
+                                                     (point))))))))))))))
+        collect
+        (if has-prompt
+            block
+          (if (eq (car block) 'user)
+              (prog1 block
+                (setq has-prompt t))
+            (cons 'system (cdr block)))))))))
 
 
 
@@ -1011,6 +1033,17 @@ request."
               (--map `(("content" . ,(cdr it))
                        ("role" . ,(symbol-name (car it)))))
               (vconcat))))))))
+
+(defun org-assistant--coallesce-assistant-messages (blocks)
+  "Return BLOCKS with the consecutive assistant messages merged."
+  (cl-loop with output = nil
+           for (type . value) in blocks
+           do
+           (if (and (eq type 'assistant)
+                   (eq (caar output) 'assistant))
+               (setcdr (car output) (concat (cdar output) value))
+               (push (cons type value) output))
+           finally return (reverse output)))
 
 (defun org-assistant--dedupe-alist (alist)
   "Dedupe the keys in the ALIST."
