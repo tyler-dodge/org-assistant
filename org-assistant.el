@@ -437,8 +437,9 @@ later substituted by `org-assistant'."
                       (lambda ()
                         (let ((inhibit-message t)
                               (,replacement-var ,replacement-var))
-                          (setq org-assistant--inflight-request
-                                (--filter (not (string= it ,replacement-var)) org-assistant--inflight-request))
+                          (unless streaming
+                            (setq org-assistant--inflight-request
+                                  (--filter (not (string= it ,replacement-var)) org-assistant--inflight-request)))
                           (with-current-buffer ,buffer-var
                             (let ((,pt-temp-var (point)))
                               (-some-->
