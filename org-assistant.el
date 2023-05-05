@@ -363,6 +363,16 @@ This is used to avoid automatically adjusting the
 prompt when multiple are inflight.")
 
 ;;;###autoload
+(defun org-assistant-setup ()
+  "Sets up optional libraries like `markdown-mode' to work with `org-assistant'.
+
+If `markdown-mode' is available, it will be used.
+"
+  (when (require 'markdown-mode nil t)
+    (add-to-list 'org-src-lang-modes '("?" . markdown))
+    (add-to-list 'org-src-lang-modes '("assistant" . markdown))))
+
+;;;###autoload
 (defun org-assistant ()
   "Prompt the user for an initial prompt for the assistant.
 
