@@ -1078,6 +1078,8 @@ request."
 (defun org-assistant-clear-request-queue ()
   "Reset `org-assistant' request queue to orginal state."
   (interactive)
+  (cl-loop for process in (hash-table-values org-assistant--request-processes-ht)
+           do (ignore-errors (kill-process process)))
   (setq org-assistant--request-processes-ht (make-hash-table :test #'equal))
   (setq org-assistant--inflight-request nil)
   (setq org-assistant--request-queue-active-p nil)
