@@ -479,14 +479,13 @@ later substituted by `org-assistant'."
                                                (delete-region (match-beginning 0) (match-end 0))
                                                (if ,in-src-block-var
                                                    (progn
-
                                                      (when (looking-back "\n") (replace-match ""))
                                                      (insert (concat message (when streaming (concat "\n" ,replacement-var))))
                                                      (setq hook-pt (point)))
                                                  (setq hook-pt (point))
                                                  (insert (concat "#+BEGIN_SRC assistant :sender assistant
 "
-                                                                 (concat message (when streaming ,replacement-var))
+                                                                 (concat message "\n" (when streaming ,replacement-var))
                                                                  "
 #+END_SRC"
                                                                  (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" "")))))
