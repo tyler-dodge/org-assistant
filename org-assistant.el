@@ -623,7 +623,7 @@ ARGS is expected to be a plist with the following keys:
                            (lambda ()
                              (cond
                               ((not (string= (string-trim status) "finished"))
-                               (deferred:errorback-post promise status)
+                               (deferred:errorback-post promise (concat (with-current-buffer shell-buffer (buffer-string)) "\n" status))
                                t)
                               ((not (buffer-live-p shell-buffer))
                                (deferred:errorback-post promise (concat "Buffer not live" (buffer-name shell-buffer)))
