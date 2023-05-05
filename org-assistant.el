@@ -312,17 +312,22 @@ contained in MESSAGE."
       (org-assistant-mode 1)
       (display-line-numbers-mode -1)
       (goto-char (point-max))
-      (insert (format "\n* Question\n#+BEGIN_SRC ?\n%s\n#+END_SRC\n"
-                      message))
-      (run-at-time nil nil
-                   (lambda ()
-                     (with-current-buffer buffer
-                       (goto-char (point-max))
-                       (forward-line -1)
-                       (org-ctrl-c-ctrl-c)
-                       (cl-loop for window in (get-buffer-window-list buffer)
-                                do (set-window-start window (point-max)))))))
-    (select-window (display-buffer buffer))))
+      (insert "\n* Question\n#+BEGIN_SRC ?\n")
+      (insert message)
+      (let ((pt (point)))
+        (save-excursion
+          (insert "\n#+END_SRC\n"))
+        (run-at-time nil nil
+                     (lambda ()
+                       (with-current-buffer buffer
+                         (goto-char (point-max))
+                         (forward-line -1)
+                         (org-ctrl-c-ctrl-c)
+                         (cl-loop for window in (get-buffer-window-list buffer)
+                                  do (set-window-point window pt)))))
+        (set-window-point
+         (select-window (display-buffer buffer))
+         pt)))))
 
 (defvar org-assistant-mode-map (make-sparse-keymap)
   "Keymap for `org-assistant-mode' buffers.")
@@ -493,9 +498,11 @@ later substituted by `org-assistant'."
                                                           (save-match-data
                                                             (save-excursion
                                                               (funcall hook)))))))
-                                           (when ,insert-prompt-var (re-search-backward org-assistant--begin-src-regexp)
-                                                 (forward-line 1)
-                                                 (point)))))))
+                                           (when ,insert-prompt-var
+                                             (re-search-forward org-assistant--begin-src-regexp nil t)
+                                             (re-search-forward org-assistant--begin-src-regexp nil t)
+                                             (forward-line 1)
+                                             (point)))))))
                                 (progn
                                   (unless org-assistant--request-queue-active-p
                                     (goto-char it)
@@ -1133,7 +1140,7 @@ Return nil."
                                (rx line-start (* whitespace) (+ (any alphanumeric "-")) (* whitespace) line-end)
                                (org-babel-result-end)
                                t)
-                          (get-text-property (match-end 0) 'replacement))))))
+                          (match-string 0))))))
             (cl-loop with uuid = nil
                      while (setq uuid (uuid-at-point))
                      do

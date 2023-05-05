@@ -339,6 +339,7 @@ C-response
           (setq org-assistant-response-completed-hook
                 (list
                  (lambda (&rest arg)
+                   (setq org-assistant-response-completed-hook nil)
                    (condition-case err
                        (with-current-buffer buffer
                          (goto-char location)
