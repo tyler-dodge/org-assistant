@@ -322,9 +322,9 @@ contained in MESSAGE."
                        (with-current-buffer buffer
                          (goto-char (point-max))
                          (forward-line -1)
-                         (org-ctrl-c-ctrl-c)
                          (cl-loop for window in (get-buffer-window-list buffer)
-                                  do (set-window-point window pt)))))
+                                  do (set-window-point window pt))
+                         (org-ctrl-c-ctrl-c))))
         (set-window-point
          (select-window (display-buffer buffer))
          pt)))))
