@@ -141,6 +141,9 @@ Response B
 
 # Commands
 
+## org-assistant-setup
+Sets up optional libraries like ‘markdown-mode’ to work with ‘org-assistant’.
+
 ## org-assistant
 Prompt the user for an initial prompt for the assistant.
 
@@ -327,6 +330,10 @@ See `org-assistant-endpoint` for the domain.
 
 * [org-assistant-endpoint-path-image](#org-assistant-endpoint-path-image)<a name="org-assistant-endpoint-path-image"></a>:
 The endpoint used for the assistant.
+
+* [org-assistant-response-completed-hook](#org-assistant-response-completed-hook)<a name="org-assistant-response-completed-hook"></a>:
+The hook called whenever a org-assistant request finishes executing.
+Called with the buffer and point set to the the end of the response.
 
 * [org-assistant-parallelism](#org-assistant-parallelism)<a name="org-assistant-parallelism"></a>:
 The max inflight requests to send with `org-assistant` at once.

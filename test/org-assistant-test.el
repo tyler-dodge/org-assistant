@@ -227,40 +227,53 @@ C-response
 
 (ert-deftest-async org-assistant-end-to-end-test (done done-output-replaced)
   "Sanity check to make sure `org-assistant--org-blocks' handles branches correctly."
+  
   (setq org-assistant-chat-extra-parameters-alist '((temperature . 2)
                                                     (stop . "abc")))
-  (with-current-buffer (get-buffer-create " *assistant-test*")
-    (setq org-assistant-execute-curl-process-function
-          (lambda (&rest args)
-            (funcall done)
-            (-let* (((&keys :url :body :method :buffer) args) 
-                    (file (make-temp-file "org-json" nil nil
-                                          (org-assistant--json-encode '(("choices" . [(("message" ("content" . "TEST")))]))))))
-              (should (string= url (org-assistant-chat-endpoint)))
-              (should (string= method "POST"))
-              (let ((json
-                     (sort (org-assistant--json-decode
-                            (with-current-buffer (find-file-noselect (substring (cadr (plist-get args :body)) 1))
-                              (buffer-string)))
-                           (lambda (lhs rhs) (string> (symbol-name (car lhs)) (symbol-name (car rhs)))))))
-                (should (equal json
-                               '((temperature . 1)
-                                 (stop . "abc")
-                                 (model . "gpt-3.5-turbo")
-                                 (messages . [((content . "System Prompt") (role . "system"))
-                                              ((content . "A <<substitution-A>>") (role . "user"))
-                                              ((content . "A-response") (role . "assistant"))
-                                              ((content . "C") (role . "user"))
-                                              ((content . "C-response") (role . "assistant"))]))))
-                (should (org-assistant--json-encode json))
-                (make-process
-                 :name "org-assistant-json-echo"
-                 :buffer buffer
-                 :filter #'internal-default-process-filter
-                 :command (list "cat" file))))))
-    (org-mode)
-    (erase-buffer)
-    (insert "* Question
+  (let ((completion (cons nil nil)))
+    (with-current-buffer (get-buffer-create " *assistant-test*")
+      
+      (setq org-assistant-execute-curl-process-function
+            (lambda (&rest args)
+              (funcall done)
+              (-let* (((&keys :url :body :method :buffer) args) 
+                      (file (make-temp-file
+                             "org-json"
+                             nil nil
+                             (concat
+                              "data: " (org-assistant--json-encode '(("choices" . [(("delta" ("content" . "TEST")))]))) "\n\n"
+                              "data: " (org-assistant--json-encode '(("choices" . [(("delta" ("content" . "END")))]))) "\n\n"
+                              "data: " "[DONE]" "\n"))))
+                
+                (should (string= url (org-assistant-chat-endpoint)))
+                (should (string= method "POST"))
+                (let ((json
+                       (sort (org-assistant--json-decode
+                              (with-current-buffer (find-file-noselect (substring (cadr (plist-get args :body)) 1))
+                                (buffer-string)))
+                             (lambda (lhs rhs) (string> (symbol-name (car lhs)) (symbol-name (car rhs)))))))
+                  (should (equal json
+                                 '((temperature . 1)
+                                   (stream . t)
+                                   (stop . "abc")
+                                   (model . "gpt-3.5-turbo")
+                                   (messages . [((content . "System Prompt") (role . "system"))
+                                                ((content . "A <<substitution-A>>") (role . "user"))
+                                                ((content . "A-response") (role . "assistant"))
+                                                ((content . "C") (role . "user"))
+                                                ((content . "C-response") (role . "assistant"))]))))
+                  (should (org-assistant--json-encode json))
+                  (make-process
+                   :name "org-assistant-json-echo"
+                   :buffer buffer
+                   :filter #'internal-default-process-filter
+                   :sentinel (lambda (&rest _)
+                               (setcar completion t)
+                               )
+                   :command (list "cat" file))))))
+      (org-mode)
+      (erase-buffer)
+      (insert "* Question
 #+BEGIN_EXAMPLE
 System Prompt
 #+END_EXAMPLE
@@ -307,35 +320,37 @@ Ignore me
 C-response
 #+END_SRC
 ")
-    (goto-char (point-min))
-    (search-forward "c-response")
-    (should (equal (org-assistant--org-blocks t)
-                   '((system . "System Prompt")
-                     (user . "A SUBSTITUTION")
-                     (assistant . "A-response")
-                     (user . "C")
-                     (assistant . "C-response"))))
-    (defun yes-or-no-p (prompt) t)
-    (let* ((uuid (org-ctrl-c-ctrl-c))
-           (location (save-excursion (goto-char (point-min))
-                                     (re-search-forward (rx (literal uuid)))
-                                     (match-beginning 0)))
-           (timer-cons (cons nil nil)))
-      (should (stringp uuid))
-      (goto-char location)
-      (should (looking-at-p (rx (literal uuid))))
-      (let ((buffer (current-buffer)))
-        (setcar timer-cons
-                (run-at-time
-                 nil 0.1
-                 (lambda ()
-                   (with-current-buffer buffer
-                     (goto-char location)
-                     (when (not (looking-at-p (rx (literal uuid))))
-                       (should (looking-at-p (rx line-start "#+BEGIN_SRC assistant :sender assistant"))) (forward-line 1)
-                       (should (looking-at-p (rx line-start "TEST" line-end))) (forward-line 1)
-                       (should (looking-at-p (rx line-start "#+END_SRC")))
-                       (cancel-timer (car timer-cons))
-                       (funcall done-output-replaced))))))))))
+      (goto-char (point-min))
+      (search-forward "c-response")
+      (should (equal (org-assistant--org-blocks t)
+                     '((system . "System Prompt")
+                       (user . "A SUBSTITUTION")
+                       (assistant . "A-response")
+                       (user . "C")
+                       (assistant . "C-response"))))
+      (defun yes-or-no-p (prompt) t)
+
+      (let* ((uuid (org-ctrl-c-ctrl-c))
+             (location (save-excursion (goto-char (point-min))
+                                       (re-search-forward (rx (literal uuid)))
+                                       (match-beginning 0)))
+             (timer-cons (cons nil nil)))
+        (let ((buffer (current-buffer)))
+          (setq org-assistant-response-completed-hook
+                (list
+                 (lambda (&rest arg)
+                   (setq org-assistant-response-completed-hook nil)
+                   (condition-case err
+                       (with-current-buffer buffer
+                         (goto-char location)
+                         (message "%S" (thing-at-point 'line))
+                         (should (looking-at-p (rx line-start "#+BEGIN_SRC assistant :sender assistant"))) (forward-line 1)
+                         (should (looking-at-p (rx line-start "TESTEND" line-end))) (forward-line 1)
+                         (should (looking-at-p (rx line-start "#+END_SRC")))
+                         (funcall done-output-replaced))
+                     (error (funcall done-output-replaced err)))))))
+        (should (stringp uuid))
+        (goto-char location)
+        (should (looking-at-p (rx (literal uuid))))))))
 
 (provide 'org-assistant-test)
