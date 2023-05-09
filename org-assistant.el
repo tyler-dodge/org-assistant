@@ -1178,10 +1178,10 @@ Return nil."
                   (save-excursion
                     (when (re-search-forward org-assistant--begin-src-regexp nil t)
                       (alist-get :stream-id (org-assistant--org-src-arguments)))))
-            (let ((uuid it))
-              (gethash uuid org-assistant--request-processes-ht)
+            (let* ((uuid it)
+                  (process (gethash uuid org-assistant--request-processes-ht)))
               (progn
-                (when (process-live-p uuid) (kill-process uuid))
+                (when (process-live-p process) (kill-process process))
                 (remhash uuid org-assistant--request-processes-ht)
                 (setq org-assistant--inflight-request
                       (--filter (not (string= it uuid)) org-assistant--inflight-request))))))
