@@ -237,7 +237,12 @@ See `org-assistant-endpoint' for the domain."
 
 (defcustom org-assistant-response-completed-hook nil
   "The hook called whenever a org-assistant request finishes executing.
-Called with the buffer and point set to the the end of the response."
+Called with the arguments: Stream-Id and Message
+Where:
+Stream-Id is the stream-id of the request
+Message is the full contents of the response from the endpoint.
+
+The buffer and point set to the the end of the response."
   :group 'org-assistant
   :type 'hook)
 
@@ -527,9 +532,12 @@ later substituted by `org-assistant'."
                                                     (buffer-substring-no-properties
                                                      (save-excursion
                                                        (re-search-backward org-assistant--begin-src-regexp)
+                                                       (forward-line 1)
                                                        (point))
                                                      (save-excursion
                                                        (re-search-forward org-assistant--end-src-regexp)
+                                                       (forward-line -1)
+                                                       (end-of-line)
                                                        (point)))))))))
                                          (when ,insert-prompt-var
                                            (re-search-forward org-assistant--begin-src-regexp nil t)
