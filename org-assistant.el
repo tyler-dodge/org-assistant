@@ -519,11 +519,18 @@ later substituted by `org-assistant'."
                                            (unless streaming
                                              (save-excursion
                                                (goto-char hook-pt)
-                                               (cl-loop for hook in org-assistant-response-completed-hook
-                                                        do
-                                                        (save-match-data
-                                                          (save-excursion
-                                                            (funcall hook)))))))
+                                               (save-match-data
+                                                 (save-excursion
+                                                   (run-hook-with-args
+                                                    'org-assistant-response-completed-hook
+                                                    ,replacement-var
+                                                    (buffer-substring-no-properties
+                                                     (save-excursion
+                                                       (re-search-backward org-assistant--begin-src-regexp)
+                                                       (point))
+                                                     (save-excursion
+                                                       (re-search-forward org-assistant--end-src-regexp)
+                                                       (point)))))))))
                                          (when ,insert-prompt-var
                                            (re-search-forward org-assistant--begin-src-regexp nil t)
                                            (re-search-forward org-assistant--begin-src-regexp nil t)
@@ -1154,34 +1161,51 @@ Return nil."
     (save-excursion
       (forward-line 0)
       (re-search-forward (rx line-start "#+END_SRC") nil t)
-      (let ((end (save-excursion
-                   (forward-line 4)
-                   (point))))
-        (when (re-search-forward (rx line-start "#+RESULTS:") end t)
-          (goto-char (match-beginning 0))
-          (forward-line 1)
-          (cl-flet ((uuid-at-point ()
-                      (cond
-                       ((looking-at (rx line-start (* whitespace) (+ (any alphanumeric "-")) (* whitespace) line-end))
-                        (string-trim (match-string 0)))
-                       (t
-                        (when (re-search-forward
-                               (rx line-start (* whitespace) (+ (any alphanumeric "-")) (* whitespace) line-end)
-                               (org-babel-result-end)
-                               t)
-                          (match-string 0))))))
-            (cl-loop with uuid = nil
-                     while (setq uuid (uuid-at-point))
-                     do
-                     (-some-->
-                         (gethash uuid org-assistant--request-processes-ht)
-                       (progn
-                         (replace-match "")
-                         (when (process-live-p it) (kill-process it))
-                         (remhash uuid org-assistant--request-processes-ht)
-                         (setq org-assistant--inflight-request
-                               (--filter (not (string= it uuid)) org-assistant--inflight-request))))
-                     (forward-line 1))))))))
+      (cond
+       ((save-excursion
+          (-some-->
+              (or (save-excursion
+                    (when (re-search-backward org-assistant--begin-src-regexp nil t)
+                      (alist-get :stream-id (org-assistant--org-src-arguments))))
+                  (save-excursion
+                    (when (re-search-forward org-assistant--begin-src-regexp nil t)
+                      (alist-get :stream-id (org-assistant--org-src-arguments)))))
+            (let ((uuid it))
+              (gethash uuid org-assistant--request-processes-ht)
+              (progn
+                (when (process-live-p uuid) (kill-process uuid))
+                (remhash uuid org-assistant--request-processes-ht)
+                (setq org-assistant--inflight-request
+                      (--filter (not (string= it uuid)) org-assistant--inflight-request))))))
+        t)
+       (t (let ((end (save-excursion
+                       (forward-line 4)
+                       (point))))
+            (when (re-search-forward (rx line-start "#+RESULTS:") end t)
+              (goto-char (match-beginning 0))
+              (forward-line 1)
+              (cl-flet ((uuid-at-point ()
+                          (cond
+                           ((looking-at (rx line-start (* whitespace) (+ (any alphanumeric "-")) (* whitespace) line-end))
+                            (string-trim (match-string 0)))
+                           (t
+                            (when (re-search-forward
+                                   (rx line-start (* whitespace) (+ (any alphanumeric "-")) (* whitespace) line-end)
+                                   (org-babel-result-end)
+                                   t)
+                              (match-string 0))))))
+                (cl-loop with uuid = nil
+                         while (setq uuid (uuid-at-point))
+                         do
+                         (-some-->
+                             (gethash uuid org-assistant--request-processes-ht)
+                           (progn
+                             (replace-match "")
+                             (when (process-live-p it) (kill-process it))
+                             (remhash uuid org-assistant--request-processes-ht)
+                             (setq org-assistant--inflight-request
+                                   (--filter (not (string= it uuid)) org-assistant--inflight-request))))
+                         (forward-line 1))))))))))
 
 (defun org-assistant--org-src-arguments ()
   "Return an alist containing the arguments for the src block."
