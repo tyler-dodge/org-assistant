@@ -333,10 +333,14 @@ contained in MESSAGE."
   "Keymap for `org-assistant-mode' buffers.")
 
 (defconst org-assistant--begin-src-regexp
-  (rx "#+BEGIN_SRC"
+  (rx line-start "#+BEGIN_SRC"
       (+ whitespace)
       (or "assistant" "?"))
   "Regexp for finding #+BEGIN_SRC ? blocks.")
+
+(defconst org-assistant--end-src-regexp
+  (rx line-start "#+END_SRC")
+  "Regexp for finding #+END_SRC blocks.")
 
 (defconst org-assistant--begin-example-regexp
   (rx "#+BEGIN_EXAMPLE")
@@ -459,7 +463,8 @@ later substituted by `org-assistant'."
                             (-some-->
                                 (save-mark-and-excursion
                                   (goto-char (point-min))
-                                  (when (re-search-forward (rx (literal ,replacement-var))
+                                  (when (re-search-forward (rx (? (seq (* whitespace) ":stream-id" (+ whitespace)))
+                                                               (literal ,replacement-var))
                                                            nil t)
                                     (pcase response-type
                                       ('file-list
@@ -477,7 +482,10 @@ later substituted by `org-assistant'."
                                                       (setq first nil))
                                                   (replace-match ""))))
                                       (_
-                                       (let* ((,in-src-block-var (save-match-data (org-in-src-block-p)))
+                                       (let* ((,in-src-block-var (save-match-data
+                                                                   (save-excursion
+                                                                     (forward-line 1)
+                                                                     (org-in-src-block-p))))
                                               (,insert-prompt-var
                                                (and
                                                 (not ,in-src-block-var)
@@ -491,16 +499,20 @@ later substituted by `org-assistant'."
                                          (let ((hook-pt nil))
                                            (save-excursion
                                              (goto-char (match-beginning 0))
-                                             (delete-region (match-beginning 0) (match-end 0))
                                              (if ,in-src-block-var
                                                  (progn
-                                                   (when (looking-back "\n") (replace-match ""))
-                                                   (insert (concat message (when streaming (concat "\n" ,replacement-var))))
+                                                   (when (not streaming) (replace-match ""))
+                                                   (re-search-forward org-assistant--end-src-regexp)
+                                                   (forward-line -1)
+                                                   (end-of-line)
+                                                   (insert message)
                                                    (setq hook-pt (point)))
+                                               (delete-region (match-beginning 0) (match-end 0))
                                                (setq hook-pt (point))
-                                               (insert (concat "#+BEGIN_SRC assistant :sender assistant
-"
-                                                               (concat message "\n" (when streaming ,replacement-var))
+                                               (insert (concat "#+BEGIN_SRC assistant :sender assistant"
+                                                               (when streaming (concat " :stream-id " ,replacement-var))
+                                                               "\n"
+                                                               message
                                                                "
 #+END_SRC"
                                                                (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" "")))))
