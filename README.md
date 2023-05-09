@@ -142,7 +142,9 @@ Response B
 # Commands
 
 ## org-assistant-setup
-Sets up optional libraries like ‘markdown-mode’ to work with ‘org-assistant’.
+Set up optional libraries like ‘markdown-mode’ to work with ‘org-assistant’.
+
+If ‘markdown-mode’ is available, it will be used.
 
 ## org-assistant
 Prompt the user for an initial prompt for the assistant.
@@ -332,8 +334,13 @@ See `org-assistant-endpoint` for the domain.
 The endpoint used for the assistant.
 
 * [org-assistant-response-completed-hook](#org-assistant-response-completed-hook)<a name="org-assistant-response-completed-hook"></a>:
-The hook called whenever a org-assistant request finishes executing.
-Called with the buffer and point set to the the end of the response.
+The hook called whenever a `org-assistant` request finishes executing.
+Called with the arguments: Stream-Id and Message
+Where:
+Stream-Id is the stream-id of the request
+Message is the full contents of the response from the endpoint.
+
+The buffer and point set to the the end of the response.
 
 * [org-assistant-parallelism](#org-assistant-parallelism)<a name="org-assistant-parallelism"></a>:
 The max inflight requests to send with `org-assistant` at once.
@@ -353,6 +360,26 @@ frequency-penalty
 logit-bias
 user
 Should be a alist like '((max_tokens . 10) (user . "emacs")).
+
+This can be overriden on a per-src block basis by specifying the
+:params argument.
+
+See https://platform.openai.com/docs/api-reference/chat/create
+for reference.
+
+```
+#+BEGIN_SRC assistant :params '((max_tokens . 10) (user . "emacs"))
+Hi
+#+END_SRC
+```
+
+* [org-assistant-image-extra-parameters-alist](#org-assistant-image-extra-parameters-alist)<a name="org-assistant-image-extra-parameters-alist"></a>:
+Extra parameters to be sent with an image request.
+
+Known allowed keys are:
+size
+user
+Should be a alist like '((size . "1024x1024") (user . "emacs")).
 
 This can be overriden on a per-src block basis by specifying the
 :params argument.
