@@ -236,7 +236,7 @@ See `org-assistant-endpoint' for the domain."
   :type '(string))
 
 (defcustom org-assistant-response-completed-hook nil
-  "The hook called whenever a org-assistant request finishes executing.
+  "The hook called whenever a `org-assistant' request finishes executing.
 Called with the arguments: Stream-Id and Message
 Where:
 Stream-Id is the stream-id of the request
@@ -396,10 +396,9 @@ prompt when multiple are inflight.")
 
 ;;;###autoload
 (defun org-assistant-setup ()
-  "Sets up optional libraries like `markdown-mode' to work with `org-assistant'.
+  "Set up optional libraries like `markdown-mode' to work with `org-assistant'.
 
-If `markdown-mode' is available, it will be used.
-"
+If `markdown-mode' is available, it will be used."
   (when (require 'markdown-mode nil t)
     (add-to-list 'org-src-lang-modes '("?" . markdown))
     (add-to-list 'org-src-lang-modes '("assistant" . markdown))))
@@ -674,8 +673,8 @@ ARGS is expected to be a plist with the following keys:
                                       (cl-loop for json in json-objects
                                                do
                                                (funcall ,stream-var json))
-                                    (user-error (message "Failed to stream object %S" json))
-                                    (error (message "Failed to stream object %S" json)))
+                                    (user-error (message "Failed to stream object %S" err))
+                                    (error (message "Failed to stream object %S" err)))
                                   (when json-objects
                                     (setq-local org-assistant--process-json-read-pt end-of-parse-pt)))))))))
                      (let ((original-sentinel (process-sentinel process)))
@@ -1046,6 +1045,7 @@ request."
   "Execute or queue the `org-assistant' request for BLOCKS.
 
 REQUEST-ID is used to keep track of the request for later.
+BLOCK-PARAMS contains the params of the calling block.
 Return a deferred object representing the completion of the
 request."
   (org-assistant--queue-request
@@ -1084,6 +1084,7 @@ request."
   "Execute or queue the `org-assistant' request for BLOCKS.
 
 BLOCK-PARAMS contains the params of the calling block.
+BABEL-RESPONSE contains a callback for streaming the message to babel.
 REQUEST-ID is used to keep track of the request for later.
 Return a deferred object representing the completion of the
 request."
@@ -1252,12 +1253,12 @@ Return nil."
      (s-join " " (cddar (org-parse-arguments))))))
 
 (defun org-assistant--parse-stream-json-after-point ()
-  "Returns a list of the jsons after point.
+  "Return a list of the jsons after point.
 Sets point to the last unparsed line on completion."
   (let ((list nil))
     (forward-line 0)
     (cl-block completed
-      (condition-case err
+      (condition-case _
           (cl-loop while (not (eobp))
                    do
                    (progn
