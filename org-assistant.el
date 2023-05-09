@@ -282,6 +282,29 @@ Hi
   :group 'org-assistant
   :type '(alist))
 
+(defcustom org-assistant-image-extra-parameters-alist
+  nil
+  "Extra parameters to be sent with an image request.
+
+Known allowed keys are:
+size
+user
+Should be a alist like '((size . \"1024x1024\") (user . \"emacs\")).
+
+This can be overriden on a per-src block basis by specifying the
+:params argument.
+
+See https://platform.openai.com/docs/api-reference/chat/create
+for reference.
+
+<example>
+#+BEGIN_SRC assistant :params '((max_tokens . 10) (user . \"emacs\"))
+Hi
+#+END_SRC
+</example>"
+  :group 'org-assistant
+  :type '(alist))
+
 (defcustom org-assistant-execute-curl-process-function
   #'org-assistant--execute-curl-shell-command-request
   "Function used to execute the shell command for `org-assistant'.
@@ -514,13 +537,13 @@ later substituted by `org-assistant'."
                                                    (setq hook-pt (point)))
                                                (delete-region (match-beginning 0) (match-end 0))
                                                (setq hook-pt (point))
-                                               (insert (concat "#+BEGIN_SRC assistant :sender assistant"
-                                                               (when streaming (concat " :stream-id " ,replacement-var))
-                                                               "\n"
-                                                               message
-                                                               "
+                                               (insert "#+BEGIN_SRC assistant :sender assistant"
+                                                       (when streaming (concat " :stream-id " ,replacement-var))
+                                                       "\n"
+                                                       message
+                                                       "
 #+END_SRC"
-                                                               (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" "")))))
+                                                       (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" ""))))
                                            (unless streaming
                                              (save-excursion
                                                (goto-char hook-pt)
@@ -839,7 +862,11 @@ An image of the GNU mascot
                           (user-error "Only .png output files are supported %s" it)))
           (org-assistant-org-babel-async-response
             (deferred:$
-             (org-assistant--queue-image-request org-assistant--request-id blocks)
+             (org-assistant--queue-image-request org-assistant--request-id
+                                                 (lambda (json) (babel-response json nil t))
+                                                 (alist-get :params params)
+                                                 blocks)
+             (deferred:nextc it (lambda (response) (org-assistant--json-decode response)))
              (deferred:nextc
               it
               (lambda (response)
@@ -1015,7 +1042,7 @@ request."
       (org-assistant--queue-request-execute job-with-promise))
     promise))
 
-(defun org-assistant--queue-image-request (request-id blocks)
+(defun org-assistant--queue-image-request (request-id _ block-params blocks)
   "Execute or queue the `org-assistant' request for BLOCKS.
 
 REQUEST-ID is used to keep track of the request for later.
@@ -1027,7 +1054,9 @@ request."
     :request-id request-id
     :url (org-assistant-image-endpoint)
     :method "POST"
-    :json `(("response_format" . "b64_json")
+    :json `(,@(org-assistant--validate-parameters org-assistant-image-extra-parameters-alist)
+            ,@(org-assistant--validate-parameters block-params)
+            ("response_format" . "b64_json")
             ("prompt" . ,(cl-loop for (name . message) in blocks
                                   concat
                                   (concat (symbol-name name)
@@ -1229,7 +1258,7 @@ Sets point to the last unparsed line on completion."
     (forward-line 0)
     (cl-block completed
       (condition-case err
-          (cl-loop while (< (point) (point-max))
+          (cl-loop while (not (eobp))
                    do
                    (progn
                      (when (looking-at (rx "data:" (+ whitespace) "[DONE]"))
@@ -1239,8 +1268,7 @@ Sets point to the last unparsed line on completion."
                      (when (looking-at (rx "data:" (* whitespace)))
                        (goto-char (match-end 0))
                        (push (json-read) list))
-                     (forward-line 1))
-                   )
+                     (forward-line 1)))
         (error (forward-line -1))))
     (reverse list)))
 
