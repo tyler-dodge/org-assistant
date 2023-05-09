@@ -326,6 +326,9 @@ This should match `org-babel-default-header-args:assistant'")
   "Marker that represents the end of the last read output.
 For org-assisant process buffers.")
 
+(defvar-local org-assistant--buffer-requests nil
+  "Buffer local list that keeps track of `org-assistant' requests.")
+
 (defvar org-assistant-history nil
   "History variable for `org-assistant'.")
 
@@ -377,6 +380,7 @@ contained in MESSAGE."
 (define-minor-mode org-assistant-mode "Mode for org assistant buffers."
   :init-value nil
   :keymap org-assistant-mode-map
+  (add-hook 'kill-buffer-hook #'org-assistant-kill-buffer-requests nil t)
   (when org-assistant-mode-visual-line-enabled
     (visual-line-mode org-assistant-mode))
   (when org-assistant-mode-line-format
@@ -483,97 +487,100 @@ later substituted by `org-assistant'."
                       (let ((inhibit-message t)
                             (,replacement-var ,replacement-var))
                         (unless streaming
+                          (setq org-assistant--buffer-requests
+                                (--filter (not (string= it ,replacement-var)) org-assistant--buffer-requests))
                           (setq org-assistant--inflight-request
                                 (--filter (not (string= it ,replacement-var)) org-assistant--inflight-request)))
-                        (with-current-buffer ,buffer-var
-                          (let ((,pt-temp-var (point)))
-                            (-some-->
-                                (save-mark-and-excursion
-                                  (goto-char (point-min))
-                                  (when (re-search-forward (rx (? (seq (* whitespace) ":stream-id" (+ whitespace)))
-                                                               (literal ,replacement-var))
-                                                           nil t)
-                                    (pcase response-type
-                                      ('file-list
-                                       (replace-match
-                                        (string-join (--map (format "%s" it) message) "\n")
-                                        nil t)
-                                       (goto-char (match-end 0))
-                                       (forward-line 0)
-                                       (cl-loop with first = t
-                                                while (looking-at (rx (literal (car message)) line-end))
-                                                do
-                                                (if first
-                                                    (progn
-                                                      (forward-line 1)
-                                                      (setq first nil))
-                                                  (replace-match ""))))
-                                      (_
-                                       (let* ((,in-src-block-var (save-match-data
-                                                                   (save-excursion
-                                                                     (forward-line 1)
-                                                                     (org-in-src-block-p))))
-                                              (,insert-prompt-var
-                                               (and
-                                                (not ,in-src-block-var)
-                                                (not org-assistant--request-queue-active-p)
-                                                (eq ,pt-temp-var ,start-pt-var)
-                                                (not
-                                                 (save-match-data
-                                                   (save-mark-and-excursion
-                                                     (and
-                                                      (re-search-forward org-assistant--begin-src-regexp nil t))))))))
-                                         (let ((hook-pt nil))
-                                           (save-excursion
-                                             (goto-char (match-beginning 0))
-                                             (if ,in-src-block-var
-                                                 (progn
-                                                   (when (not streaming) (replace-match ""))
-                                                   (re-search-forward org-assistant--end-src-regexp)
-                                                   (forward-line -1)
-                                                   (end-of-line)
-                                                   (insert message)
-                                                   (setq hook-pt (point)))
-                                               (delete-region (match-beginning 0) (match-end 0))
-                                               (setq hook-pt (point))
-                                               (insert "#+BEGIN_SRC assistant :sender assistant"
-                                                       (when streaming (concat " :stream-id " ,replacement-var))
-                                                       "\n"
-                                                       message
-                                                       "
-#+END_SRC"
-                                                       (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" ""))))
-                                           (unless streaming
+                        (when (buffer-live-p ,buffer-var)
+                          (with-current-buffer ,buffer-var
+                            (let ((,pt-temp-var (point)))
+                              (-some-->
+                                  (save-mark-and-excursion
+                                    (goto-char (point-min))
+                                    (when (re-search-forward (rx (? (seq (* whitespace) ":stream-id" (+ whitespace)))
+                                                                 (literal ,replacement-var))
+                                                             nil t)
+                                      (pcase response-type
+                                        ('file-list
+                                         (replace-match
+                                          (string-join (--map (format "%s" it) message) "\n")
+                                          nil t)
+                                         (goto-char (match-end 0))
+                                         (forward-line 0)
+                                         (cl-loop with first = t
+                                                  while (looking-at (rx (literal (car message)) line-end))
+                                                  do
+                                                  (if first
+                                                      (progn
+                                                        (forward-line 1)
+                                                        (setq first nil))
+                                                    (replace-match ""))))
+                                        (_
+                                         (let* ((,in-src-block-var (save-match-data
+                                                                     (save-excursion
+                                                                       (forward-line 1)
+                                                                       (org-in-src-block-p))))
+                                                (,insert-prompt-var
+                                                 (and
+                                                  (not ,in-src-block-var)
+                                                  (not org-assistant--request-queue-active-p)
+                                                  (eq ,pt-temp-var ,start-pt-var)
+                                                  (not
+                                                   (save-match-data
+                                                     (save-mark-and-excursion
+                                                       (and
+                                                        (re-search-forward org-assistant--begin-src-regexp nil t))))))))
+                                           (let ((hook-pt nil))
                                              (save-excursion
-                                               (goto-char hook-pt)
-                                               (save-match-data
-                                                 (save-excursion
-                                                   (run-hook-with-args
-                                                    'org-assistant-response-completed-hook
-                                                    ,replacement-var
-                                                    (buffer-substring-no-properties
-                                                     (save-excursion
-                                                       (re-search-backward org-assistant--begin-src-regexp)
-                                                       (forward-line 1)
-                                                       (point))
-                                                     (save-excursion
-                                                       (re-search-forward org-assistant--end-src-regexp)
-                                                       (forward-line -1)
-                                                       (end-of-line)
-                                                       (point)))))))))
-                                         (when ,insert-prompt-var
-                                           (re-search-forward org-assistant--begin-src-regexp nil t)
-                                           (re-search-forward org-assistant--begin-src-regexp nil t)
-                                           (forward-line 1)
-                                           (point)))))))
-                              (progn
-                                (unless org-assistant--request-queue-active-p
-                                  (goto-char it)
-                                  (cl-loop for window in (get-buffer-window-list (current-buffer))
-                                           do (set-window-point window it))))))))
-                      (unless (or org-assistant--request-queue
-                                  org-assistant--inflight-request)
-                        (setq org-assistant--request-queue-active-p nil))))))
+                                               (goto-char (match-beginning 0))
+                                               (if ,in-src-block-var
+                                                   (progn
+                                                     (when (not streaming) (replace-match ""))
+                                                     (re-search-forward org-assistant--end-src-regexp)
+                                                     (forward-line -1)
+                                                     (end-of-line)
+                                                     (insert message)
+                                                     (setq hook-pt (point)))
+                                                 (delete-region (match-beginning 0) (match-end 0))
+                                                 (setq hook-pt (point))
+                                                 (insert "#+BEGIN_SRC assistant :sender assistant"
+                                                         (when streaming (concat " :stream-id " ,replacement-var))
+                                                         "\n"
+                                                         message
+                                                         "
+#+END_SRC"
+                                                         (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" ""))))
+                                             (unless streaming
+                                               (save-excursion
+                                                 (goto-char hook-pt)
+                                                 (save-match-data
+                                                   (save-excursion
+                                                     (run-hook-with-args
+                                                      'org-assistant-response-completed-hook
+                                                      ,replacement-var
+                                                      (buffer-substring-no-properties
+                                                       (save-excursion
+                                                         (re-search-backward org-assistant--begin-src-regexp)
+                                                         (forward-line 1)
+                                                         (point))
+                                                       (save-excursion
+                                                         (re-search-forward org-assistant--end-src-regexp)
+                                                         (forward-line -1)
+                                                         (end-of-line)
+                                                         (point)))))))))
+                                           (when ,insert-prompt-var
+                                             (re-search-forward org-assistant--begin-src-regexp nil t)
+                                             (re-search-forward org-assistant--begin-src-regexp nil t)
+                                             (forward-line 1)
+                                             (point)))))))
+                                (progn
+                                  (unless org-assistant--request-queue-active-p
+                                    (goto-char it)
+                                    (cl-loop for window in (get-buffer-window-list (current-buffer))
+                                             do (set-window-point window it))))))
+                            (unless (or org-assistant--request-queue
+                                        org-assistant--inflight-request)
+                              (setq org-assistant--request-queue-active-p nil)))))))))
            (deferred:$
             (condition-case ,error-var
                 (progn ,@prog)
@@ -657,6 +664,7 @@ ARGS is expected to be a plist with the following keys:
                                        (insert (org-assistant--json-encode it)))
                                      (list "--data" (concat "@" file)))))))
                      (puthash ,request-id-var process org-assistant--request-processes-ht)
+                     (push ,request-id-var org-assistant--buffer-requests)
                      (set-process-filter
                       process
                       (lambda (process text)
@@ -1213,6 +1221,8 @@ Return nil."
               (progn
                 (when (process-live-p process) (kill-process process))
                 (remhash uuid org-assistant--request-processes-ht)
+                (setq org-assistant--buffer-requests
+                      (--filter (not (string= it uuid)) org-assistant--buffer-requests))
                 (setq org-assistant--inflight-request
                       (--filter (not (string= it uuid)) org-assistant--inflight-request))))))
         t)
@@ -1241,6 +1251,8 @@ Return nil."
                              (replace-match "")
                              (when (process-live-p it) (kill-process it))
                              (remhash uuid org-assistant--request-processes-ht)
+                             (setq org-assistant--buffer-requests
+                                   (--filter (not (string= it uuid)) org-assistant--buffer-requests))
                              (setq org-assistant--inflight-request
                                    (--filter (not (string= it uuid)) org-assistant--inflight-request))))
                          (forward-line 1))))))))))
@@ -1276,6 +1288,15 @@ Sets point to the last unparsed line on completion."
 (defun org-assistant--generate-replacement-string ()
   "Return a replacement token for the async process."
   (uuidgen-4))
+
+(defun org-assistant-kill-buffer-requests ()
+  "Kill all ongoing `org-assistant' requests in buffer."
+  (cl-loop for uuid in org-assistant--buffer-requests
+           do
+           (-some--> (gethash uuid org-assistant--request-processes-ht)
+             (when (process-live-p it) (kill-process it)
+                   (remhash uuid org-assistant--request-processes-ht))))
+  (setq org-assistant--buffer-requests nil))
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
