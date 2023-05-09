@@ -339,8 +339,7 @@ Called with the arguments: Stream-Id and Message
 Where:
 Stream-Id is the stream-id of the request
 Message is the full contents of the response from the endpoint.
-
-The buffer and point set to the the end of the response.
+The buffer and point are set to the the end of the response.
 
 * [org-assistant-parallelism](#org-assistant-parallelism)<a name="org-assistant-parallelism"></a>:
 The max inflight requests to send with `org-assistant` at once.
