@@ -484,6 +484,7 @@ later substituted by `org-assistant'."
                     nil nil
                     (lambda ()
                       (let ((inhibit-message t)
+                            (message (org-escape-code-in-string message))
                             (,replacement-var ,replacement-var))
                         (unless streaming
                           (setq org-assistant--buffer-requests
@@ -594,12 +595,11 @@ later substituted by `org-assistant'."
                                      ('file-list
                                       (babel-response (cdr response) (car response)))
                                      (_
-                                      (babel-response (org-escape-code-in-string
-                                                       (if (stringp response)
+                                      (babel-response (if (stringp response)
                                                            response
                                                          (if (not (consp (car-safe response)))
                                                              (s-join "" response)
-                                                           (org-assistant--json-encode-pretty-print response))))))))))))
+                                                           (org-assistant--json-encode-pretty-print response)))))))))))
          (when (buffer-live-p ,buffer-var) (with-current-buffer ,buffer-var (force-mode-line-update)))
          (with-current-buffer ,buffer-var
            (push ,replacement-var org-assistant--inflight-request))
