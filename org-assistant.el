@@ -641,78 +641,96 @@ ARGS is expected to be a plist with the following keys:
     (or url (error "Url must be set %S" args))
     (or method (error "Method must be set %S" args))
     (let ((request-id-var (make-symbol "request-id"))
+          (start-marker-var (make-symbol "start-marker"))
           (stream-var (make-symbol "stream")))
-      `(lambda ()
-         (let* ((promise (deferred:new))
-                (,stream-var ,stream)
-                (,request-id-var ,request-id)
-                (shell-buffer (generate-new-buffer " *org-assistant-request*"))
-                (callback
-                 (lambda ()
-                   (let ((process
-                          (funcall org-assistant-execute-curl-process-function
-                           :url ,url
-                           :method ,method
-                           :request-id ,request-id-var
-                           :buffer shell-buffer
-                           :headers (or ,headers (org-assistant--default-headers))
-                           :body (-some--> ,json
-                                   (org-assistant--dedupe-alist it)
-                                   (let ((file (make-temp-file "json")))
-                                     (with-temp-file file
-                                       (insert (org-assistant--json-encode it)))
-                                     (list "--data" (concat "@" file)))))))
-                     (puthash ,request-id-var process org-assistant--request-processes-ht)
-                     (push ,request-id-var org-assistant--buffer-requests)
-                     (set-process-filter
-                      process
-                      (lambda (process text)
-                        (prog1 (internal-default-process-filter process text)
-                          (with-current-buffer (process-buffer process)
-                            (save-match-data
-                              (save-excursion
-                                (unless org-assistant--process-json-read-pt
-                                  (setq-local org-assistant--process-json-read-pt (point-min)))
-                                (goto-char org-assistant--process-json-read-pt)
-                                (let* ((json-objects (org-assistant--parse-stream-json-after-point))
-                                       (end-of-parse-pt (point)))
-                                  (condition-case err
-                                      (cl-loop for json in json-objects
-                                               do
-                                               (funcall ,stream-var json))
-                                    (user-error (message "Failed to stream object %S" err))
-                                    (error (message "Failed to stream object %S" err)))
-                                  (when json-objects
-                                    (setq-local org-assistant--process-json-read-pt end-of-parse-pt)))))))))
-                     (let ((original-sentinel (process-sentinel process)))
-                       (set-process-sentinel
+      `(let ((,start-marker-var (--doto (make-marker) (set-marker it (point) (current-buffer)))))
+         (lambda ()
+           (let* ((promise (deferred:new))
+                  (,stream-var ,stream)
+                  (,request-id-var ,request-id)
+                  (shell-buffer (generate-new-buffer " *org-assistant-request*"))
+                  (callback
+                   (lambda ()
+                     (let ((process
+                            (funcall org-assistant-execute-curl-process-function
+                                     :url ,url
+                                     :method ,method
+                                     :request-id ,request-id-var
+                                     :buffer shell-buffer
+                                     :headers (or ,headers (org-assistant--default-headers))
+                                     :body
+                                     (-some-->
+                                         (with-current-buffer (marker-buffer ,start-marker-var)
+                                           (goto-char ,start-marker-var)
+                                           (set-marker ,start-marker-var nil)
+                                           (funcall ,json))
+                                       (org-assistant--dedupe-alist it)
+                                       (let ((file (make-temp-file "json")))
+                                         (with-temp-file file
+                                           (insert (org-assistant--json-encode it)))
+                                         (list "--data" (concat "@" file)))))))
+                       (puthash ,request-id-var process org-assistant--request-processes-ht)
+                       (push ,request-id-var org-assistant--buffer-requests)
+                       (set-process-filter
                         process
-                        (lambda (process status)
-                          (run-at-time
-                           nil nil
-                           (lambda ()
-                             (cond
-                              ((not (string= (string-trim status) "finished"))
-                               (deferred:errorback-post promise (concat (with-current-buffer shell-buffer (buffer-string)) "\n" status))
-                               t)
-                              ((not (buffer-live-p shell-buffer))
-                               (deferred:errorback-post promise (concat "Buffer not live" (buffer-name shell-buffer)))
-                               t)
-                              (t
-                               (with-current-buffer shell-buffer
-                                 (deferred:callback-post promise
-                                                         (buffer-string)))))
+                        (lambda (process text)
+                          (prog1 (internal-default-process-filter process text)
+                            (with-current-buffer (process-buffer process)
+                              (save-match-data
+                                (save-excursion
+                                  (unless org-assistant--process-json-read-pt
+                                    (setq-local org-assistant--process-json-read-pt (point-min)))
+                                  (goto-char org-assistant--process-json-read-pt)
+                                  (let* ((json-objects (org-assistant--parse-stream-json-after-point))
+                                         (end-of-parse-pt (point)))
+                                    (condition-case err
+                                        (cl-loop for json in json-objects
+                                                 do
+                                                 (funcall ,stream-var json))
+                                      (user-error (message "Failed to stream object %S" err))
+                                      (error (message "Failed to stream object %S" err)))
+                                    (when json-objects
+                                      (setq-local org-assistant--process-json-read-pt end-of-parse-pt)))))))))
+                       (let ((original-sentinel (process-sentinel process)))
+                         (set-process-sentinel
+                          process
+                          (lambda (process status)
+                            (run-at-time
+                             nil nil
+                             (lambda ()
+                               (cond
+                                ((not (string= (string-trim status) "finished"))
+                                 (deferred:errorback-post promise (concat (with-current-buffer shell-buffer (buffer-string)) "\n" status))
+                                 t)
+                                ((not (buffer-live-p shell-buffer))
+                                 (deferred:errorback-post promise (concat "Buffer not live" (buffer-name shell-buffer)))
+                                 t)
+                                (t
+                                 (with-current-buffer shell-buffer
+                                   (deferred:callback-post promise
+                                                           (buffer-string)))))
 
-                             (remhash ,request-id-var org-assistant--request-processes-ht)
-                             (when (functionp original-sentinel)
-                               (funcall original-sentinel process status))
-                             (kill-buffer shell-buffer))))))))))
-           (run-at-time nil nil (lambda ()
-                                  (condition-case err
-                                      (funcall callback)
-                                    (error (deferred:errorback-post promise err))
-                                    (user-error (deferred:errorback-post promise err)))))
-           promise)))))
+                               (remhash ,request-id-var org-assistant--request-processes-ht)
+                               (when (functionp original-sentinel)
+                                 (funcall original-sentinel process status))
+                               (kill-buffer shell-buffer))))))))))
+             (run-at-time nil nil (lambda ()
+                                    (condition-case err
+                                        (funcall callback)
+                                      (error (deferred:errorback-post promise err))
+                                      (user-error (deferred:errorback-post promise err)))))
+             (deferred:$
+              promise
+              (deferred:nextc
+               it
+               (lambda (response)
+                 (set-marker ,start-marker-var nil)
+                 response))
+              (deferred:error
+               it
+              (lambda (error)
+                (set-marker ,start-marker-var nil)
+                (error (error-message-string error)))))))))))
 
 (defmacro org-assistant--join-endpoint (domain path)
   "Validate and return joined DOMAIN and PATH."
@@ -852,13 +870,13 @@ An image of the GNU mascot
       (deferred:$
        (org-assistant--queue-list-models-request org-assistant--request-id))))
    (t
-    (let* ((blocks (org-assistant--org-blocks (org-babel-noweb-p params :eval))))
+    (let* ((blocks (lambda () (org-assistant--org-blocks (org-babel-noweb-p params :eval)))))
       (cond
        ((assoc :echo params)
         (concat
          "#+BEGIN_EXAMPLE
 "
-         (s-join "\n" (--map (format "%S" it) blocks))
+         (s-join "\n" (--map (format "%S" it) (funcall blocks)))
          "
 #+END_EXAMPLE
 "))
@@ -1061,14 +1079,15 @@ request."
     :request-id request-id
     :url (org-assistant-image-endpoint)
     :method "POST"
-    :json `(,@(org-assistant--validate-parameters org-assistant-image-extra-parameters-alist)
-            ,@(org-assistant--validate-parameters block-params)
-            ("response_format" . "b64_json")
-            ("prompt" . ,(cl-loop for (name . message) in blocks
-                                  concat
-                                  (concat (symbol-name name)
-                                          ": "
-                                          message)))))))
+    :json (lambda ()
+            `(,@(org-assistant--validate-parameters org-assistant-image-extra-parameters-alist)
+              ,@(org-assistant--validate-parameters block-params)
+              ("response_format" . "b64_json")
+              ("prompt" . ,(cl-loop for (name . message) in (funcall blocks)
+                                    concat
+                                    (concat (symbol-name name)
+                                            ": "
+                                            message))))))))
 
 (defun org-assistant--default-headers ()
   "Return the headers used by the `org-assistant' endpoint."
@@ -1110,15 +1129,16 @@ request."
                   (alist-get 'content it)
                   (funcall babel-response it))))
     :json
-    `(("model" . ,org-assistant-model)
-      (stream . t)
-      ,@(org-assistant--validate-parameters org-assistant-chat-extra-parameters-alist)
-      ,@(org-assistant--validate-parameters block-params)
-      ("messages" .
-       ,(->> blocks
-             (--map `(("content" . ,(cdr it))
-                      ("role" . ,(symbol-name (car it)))))
-             (vconcat)))))))
+    (lambda ()
+      `(("model" . ,org-assistant-model)
+        (stream . t)
+        ,@(org-assistant--validate-parameters org-assistant-chat-extra-parameters-alist)
+        ,@(org-assistant--validate-parameters block-params)
+        ("messages" .
+         ,(->> (funcall blocks)
+               (--map `(("content" . ,(cdr it))
+                        ("role" . ,(symbol-name (car it)))))
+               (vconcat))))))))
 
 (defun org-assistant--coallesce-assistant-messages (blocks)
   "Return BLOCKS with the consecutive assistant messages merged."
