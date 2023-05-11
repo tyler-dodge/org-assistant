@@ -484,7 +484,7 @@ later substituted by `org-assistant'."
                     nil nil
                     (lambda ()
                       (let ((inhibit-message t)
-                            (message (org-escape-code-in-string message))
+                            (message (if (listp message) message (org-escape-code-in-string message)))
                             (,replacement-var ,replacement-var))
                         (unless streaming
                           (setq org-assistant--buffer-requests
