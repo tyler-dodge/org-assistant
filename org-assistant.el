@@ -1220,7 +1220,11 @@ Return nil."
     (json-read-from-string json)))
 
 (defun org-assistant-cancel-block-at-point ()
-  "Cancel the `org-assistant' execution at point."
+  "Cancel the `org-assistant' execution at point.
+
+This refers to the streaming block before or after the current block.
+It will not cancel a block that is streaming at point.
+"
   (interactive)
   (save-match-data
     (save-excursion
@@ -1229,12 +1233,9 @@ Return nil."
       (cond
        ((save-excursion
           (-some-->
-              (or (save-excursion
-                    (when (re-search-backward org-assistant--begin-src-regexp nil t)
-                      (alist-get :stream-id (org-assistant--org-src-arguments))))
-                  (save-excursion
-                    (when (re-search-forward org-assistant--begin-src-regexp nil t)
-                      (alist-get :stream-id (org-assistant--org-src-arguments)))))
+              (save-excursion
+                (when (re-search-forward org-assistant--begin-src-regexp nil t)
+                  (alist-get :stream-id (org-assistant--org-src-arguments))))
             (let* ((uuid it)
                   (process (gethash uuid org-assistant--request-processes-ht)))
               (progn
