@@ -1235,7 +1235,8 @@ It will not cancel a block that is streaming at point.
           (-some-->
               (save-excursion
                 (when (re-search-forward org-assistant--begin-src-regexp nil t)
-                  (alist-get :stream-id (org-assistant--org-src-arguments))))
+                  (org-assistant--org-src-arguments)))
+            (alist-get :stream-id it)
             (let* ((uuid it)
                   (process (gethash uuid org-assistant--request-processes-ht)))
               (progn
@@ -1278,11 +1279,14 @@ It will not cancel a block that is streaming at point.
                          (forward-line 1))))))))))
 
 (defun org-assistant--org-src-arguments ()
-  "Return an alist containing the arguments for the src block."
-  (save-excursion
-    (org-babel-goto-src-block-head)
-    (org-babel-parse-header-arguments
-     (s-join " " (cddar (org-parse-arguments))))))
+  "Return an alist containing the arguments for the src block.
+
+If it cannot find the src block, returns nil."
+  (ignore-errors
+    (save-excursion
+      (org-babel-goto-src-block-head)
+      (org-babel-parse-header-arguments
+       (s-join " " (cddar (org-parse-arguments)))))))
 
 (defun org-assistant--parse-stream-json-after-point ()
   "Return a list of the jsons after point.
