@@ -1378,7 +1378,9 @@ Sets point to the last unparsed line on completion."
                   (<= start-pt (match-end 0))))
               (save-excursion
                 (when (re-search-backward org-assistant--begin-src-regexp (org-element-property :begin element) t)
-                  (>= start-pt (match-end 0))))))))))
+                  (and
+                   (not (--first (overlay-get it 'stream-id) (overlays-in (point) (point))))
+                   (>= start-pt (match-beginning 0)))))))))))
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
