@@ -484,7 +484,6 @@ later substituted by `org-assistant'."
                     nil nil
                     (lambda ()
                       (let ((inhibit-message t)
-                            (message (if (listp message) message (org-escape-code-in-string message)))
                             (,replacement-var ,replacement-var))
                         (unless streaming
                           (setq org-assistant--buffer-requests
@@ -539,14 +538,16 @@ later substituted by `org-assistant'."
                                                      (re-search-forward org-assistant--end-src-regexp)
                                                      (forward-line -1)
                                                      (end-of-line)
-                                                     (insert message)
+                                                     (insert
+                                                      (if (bolp) (org-escape-code-in-string message)
+                                                        message))
                                                      (setq hook-pt (point)))
                                                  (delete-region (match-beginning 0) (match-end 0))
                                                  (setq hook-pt (point))
                                                  (insert "#+BEGIN_SRC assistant :sender assistant"
                                                          (when streaming (concat " :stream-id " ,replacement-var))
                                                          "\n"
-                                                         message
+                                                         (org-escape-code-in-string message)
                                                          "
 #+END_SRC"
                                                          (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" ""))))
