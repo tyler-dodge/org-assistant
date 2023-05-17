@@ -313,7 +313,7 @@ See `org-assistant--execute-curl-shell-command-request' for expected arguments."
   :type '(function))
 
 (defvar org-babel-default-header-args:assistant
-  (list (cons :results "raw"))
+  (list (cons :results "raw") (cons :exports "both") (cons :eval "no-export"))
   "Extra args so that org babel renders the results correctly.
 This should match `org-babel-default-header-args:?'")
 
