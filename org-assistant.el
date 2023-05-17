@@ -157,6 +157,7 @@
 ;;; Code:
 
 (require 'org)
+(require 'org-element)
 (require 'deferred)
 (require 's)
 (require 'uuidgen)
@@ -320,6 +321,9 @@ This should match `org-babel-default-header-args:?'")
   org-babel-default-header-args:assistant
   "Extra args so that org babel renders the results correctly.
 This should match `org-babel-default-header-args:assistant'")
+
+(defvar org-assistant--streaming-overlays (make-hash-table :test #'equal)
+  "Hash table that contains the mapping of request ids to overlays.")
 
 (defvar-local org-assistant--process-json-read-pt nil
   "Marker that represents the end of the last read output.
@@ -496,84 +500,98 @@ later substituted by `org-assistant'."
                               (-some-->
                                   (save-mark-and-excursion
                                     (goto-char (point-min))
-                                    (when (re-search-forward (rx (? (seq (* whitespace) ":stream-id" (+ whitespace)))
-                                                                 (literal ,replacement-var))
-                                                             nil t)
-                                      (pcase response-type
-                                        ('file-list
-                                         (replace-match
-                                          (string-join (--map (format "%s" it) message) "\n")
-                                          nil t)
-                                         (goto-char (match-end 0))
-                                         (forward-line 0)
-                                         (cl-loop with first = t
-                                                  while (looking-at (rx (literal (car message)) line-end))
-                                                  do
-                                                  (if first
-                                                      (progn
-                                                        (forward-line 1)
-                                                        (setq first nil))
-                                                    (replace-match ""))))
-                                        (_
-                                         (let* ((,in-src-block-var (save-match-data
-                                                                     (save-excursion
-                                                                       (forward-line 1)
-                                                                       (org-in-src-block-p))))
-                                                (,insert-prompt-var
-                                                 (and
-                                                  (not ,in-src-block-var)
-                                                  (not org-assistant--request-queue-active-p)
-                                                  (eq ,pt-temp-var ,start-pt-var)
-                                                  (not
-                                                   (save-match-data
-                                                     (save-mark-and-excursion
-                                                       (and
-                                                        (re-search-forward org-assistant--begin-src-regexp nil t))))))))
-                                           (let ((hook-pt nil))
-                                             (save-excursion
-                                               (goto-char (match-beginning 0))
-                                               (if ,in-src-block-var
-                                                   (progn
-                                                     (when (not streaming) (replace-match ""))
-                                                     (re-search-forward org-assistant--end-src-regexp)
-                                                     (forward-line -1)
-                                                     (end-of-line)
-                                                     (insert
-                                                      (if (bolp) (org-escape-code-in-string message)
-                                                        message))
-                                                     (setq hook-pt (point)))
-                                                 (delete-region (match-beginning 0) (match-end 0))
-                                                 (setq hook-pt (point))
-                                                 (insert "#+BEGIN_SRC assistant :sender assistant"
-                                                         (when streaming (concat " :stream-id " ,replacement-var))
-                                                         "\n"
-                                                         (org-escape-code-in-string message)
-                                                         "
-#+END_SRC"
-                                                         (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" ""))))
-                                             (unless streaming
+                                    (if-let ((overlay (gethash ,replacement-var org-assistant--streaming-overlays)))
+                                        (progn
+                                          (overlay-put overlay 'after-string (concat (overlay-get overlay 'after-string)
+                                                                                     message))
+                                          (unless (save-match-data
+                                                    (save-excursion
+                                                      (goto-char (overlay-start overlay))
+                                                      (forward-line 1)
+                                                      (org-assistant--in-src-block-p)))
+                                            (org-assistant--kill-request (overlay-get overlay 'stream-id)))
+                                          (when (not streaming)
+                                            (let ((text (overlay-get overlay 'after-string))
+                                                  (pt (overlay-start overlay)))
+                                              (remhash ,replacement-var org-assistant--streaming-overlays)
+                                              (delete-overlay overlay)
+                                              (save-match-data
+                                                (save-excursion
+                                                  (goto-char pt)
+                                                  (let ((end-block
+                                                         (save-excursion
+                                                           (when
+                                                               (re-search-forward org-assistant--end-src-regexp nil t))
+                                                           (forward-line -1)
+                                                           (end-of-line)
+                                                           (point))))
+                                                    (when (and end-block
+                                                               (save-match-data
+                                                                 (save-excursion
+                                                                   (forward-line 1)
+                                                                   (org-assistant--in-src-block-p))))
+                                                      (insert (org-escape-code-in-string text))
+                                                      (run-hook-with-args
+                                                       'org-assistant-response-completed-hook
+                                                       ,replacement-var
+                                                       (buffer-substring-no-properties
+                                                        (save-excursion
+                                                          (re-search-backward org-assistant--begin-src-regexp)
+                                                          (forward-line 1)
+                                                          (point))
+                                                        end-block))))))))
+                                          nil)
+                                      (when (re-search-forward (rx (literal ,replacement-var)) nil t)
+                                        (pcase response-type
+                                          ('file-list
+                                           (replace-match
+                                            (string-join (--map (format "%s" it) message) "\n")
+                                            nil t)
+                                           (goto-char (match-end 0))
+                                           (forward-line 0)
+                                           (cl-loop with first = t
+                                                    while (looking-at (rx (literal (car message)) line-end))
+                                                    do
+                                                    (if first
+                                                        (progn
+                                                          (forward-line 1)
+                                                          (setq first nil))
+                                                      (replace-match ""))))
+                                          (_
+                                           (let* ((,in-src-block-var (save-match-data
+                                                                       (save-excursion
+                                                                         (forward-line 1)
+                                                                         (org-assistant--in-src-block-p))))
+                                                  (,insert-prompt-var
+                                                   (and
+                                                    (not ,in-src-block-var)
+                                                    (not org-assistant--request-queue-active-p)
+                                                    (eq ,pt-temp-var ,start-pt-var)
+                                                    (not
+                                                     (save-match-data
+                                                       (save-mark-and-excursion
+                                                         (and
+                                                          (re-search-forward org-assistant--begin-src-regexp nil t))))))))
+                                             (progn
                                                (save-excursion
-                                                 (goto-char hook-pt)
-                                                 (save-match-data
-                                                   (save-excursion
-                                                     (run-hook-with-args
-                                                      'org-assistant-response-completed-hook
-                                                      ,replacement-var
-                                                      (buffer-substring-no-properties
-                                                       (save-excursion
-                                                         (re-search-backward org-assistant--begin-src-regexp)
-                                                         (forward-line 1)
-                                                         (point))
-                                                       (save-excursion
-                                                         (re-search-forward org-assistant--end-src-regexp)
-                                                         (forward-line -1)
-                                                         (end-of-line)
-                                                         (point)))))))))
-                                           (when ,insert-prompt-var
-                                             (re-search-forward org-assistant--begin-src-regexp nil t)
-                                             (re-search-forward org-assistant--begin-src-regexp nil t)
-                                             (forward-line 1)
-                                             (point)))))))
+                                                 (goto-char (match-beginning 0))
+                                                 (when (not streaming) (replace-match ""))
+                                                 (delete-region (match-beginning 0) (match-end 0))
+                                                 (insert "#+BEGIN_SRC assistant :sender assistant"
+                                                         "\n")
+                                                 (--doto (make-overlay (point) (point))
+                                                   (overlay-put it 'stream-id ,replacement-var)
+                                                   (overlay-put it 'after-string message)
+                                                   (puthash ,replacement-var it org-assistant--streaming-overlays))
+                                                 (insert
+                                                  "
+#+END_SRC"
+                                                  (if (and ,insert-prompt-var) "\n\n#+BEGIN_SRC ?\n\n#+END_SRC\n" "")))
+                                               (when ,insert-prompt-var
+                                                 (re-search-forward org-assistant--begin-src-regexp nil t)
+                                                 (re-search-forward org-assistant--begin-src-regexp nil t)
+                                                 (forward-line 1)
+                                                 (point)))))))))
                                 (progn
                                   (unless org-assistant--request-queue-active-p
                                     (goto-char it)
@@ -582,29 +600,29 @@ later substituted by `org-assistant'."
                             (unless (or org-assistant--request-queue
                                         org-assistant--inflight-request)
                               (setq org-assistant--request-queue-active-p nil)))))))))
-           (deferred:$
-            (condition-case ,error-var
-                (progn ,@prog)
-              (error (prog1 nil (babel-response ,error-var)))
-              (user-error (prog1 nil (babel-response ,error-var))))
-            (when (and it (or (deferred-p it)
-                              (error "Provided an unexpected type, expected deferred: %S" it)))
-              (deferred:error it (lambda (error) (format "%S" error))))
-            (when it
-              (deferred:nextc it (lambda (response)
-                                   (pcase (car-safe response)
-                                     ('file-list
-                                      (babel-response (cdr response) (car response)))
-                                     (_
-                                      (babel-response (if (stringp response)
-                                                           response
-                                                         (if (not (consp (car-safe response)))
-                                                             (s-join "" response)
-                                                           (org-assistant--json-encode-pretty-print response)))))))))))
-         (when (buffer-live-p ,buffer-var) (with-current-buffer ,buffer-var (force-mode-line-update)))
-         (with-current-buffer ,buffer-var
-           (push ,replacement-var org-assistant--inflight-request))
-         ,replacement-var)))
+         (deferred:$
+          (condition-case ,error-var
+              (progn ,@prog)
+            (error (prog1 nil (babel-response ,error-var)))
+            (user-error (prog1 nil (babel-response ,error-var))))
+          (when (and it (or (deferred-p it)
+                            (error "Provided an unexpected type, expected deferred: %S" it)))
+            (deferred:error it (lambda (error) (format "%S" error))))
+          (when it
+            (deferred:nextc it (lambda (response)
+                                 (pcase (car-safe response)
+                                   ('file-list
+                                    (babel-response (cdr response) (car response)))
+                                   (_
+                                    (babel-response (if (stringp response)
+                                                        response
+                                                      (if (not (consp (car-safe response)))
+                                                          (s-join "" response)
+                                                        (org-assistant--json-encode-pretty-print response)))))))))))
+       (when (buffer-live-p ,buffer-var) (with-current-buffer ,buffer-var (force-mode-line-update)))
+       (with-current-buffer ,buffer-var
+         (push ,replacement-var org-assistant--inflight-request))
+       ,replacement-var)))
 
 (cl-defun org-assistant--execute-curl-shell-command-request (&key url method request-id buffer headers body)
   "Execute a curl shell command for `org-assistant'.
@@ -662,9 +680,10 @@ ARGS is expected to be a plist with the following keys:
                                      :body
                                      (-some-->
                                          (with-current-buffer (marker-buffer ,start-marker-var)
-                                           (goto-char ,start-marker-var)
-                                           (set-marker ,start-marker-var nil)
-                                           (funcall ,json))
+                                           (save-excursion
+                                             (goto-char ,start-marker-var)
+                                             (set-marker ,start-marker-var nil)
+                                             (funcall ,json)))
                                        (org-assistant--dedupe-alist it)
                                        (let ((file (make-temp-file "json")))
                                          (with-temp-file file
@@ -931,7 +950,7 @@ Only blocks that are within the top level section of each heading will
 be included, so subheadings can represent multiple paths of the
 conversation."
   (save-mark-and-excursion
-    (when (org-in-src-block-p)
+    (when (org-assistant--in-src-block-p)
       (forward-line 0)
       (or (re-search-forward (rx "#+END_SRC") nil t) (goto-char (point-max))))
     (when (org-in-block-p (list "EXAMPLE"))
@@ -1176,6 +1195,9 @@ request."
   (cl-loop for process in (hash-table-values org-assistant--request-processes-ht)
            do (ignore-errors (kill-process process)))
   (setq org-assistant--request-processes-ht (make-hash-table :test #'equal))
+  (cl-loop for overlay in (hash-table-values org-assistant--streaming-overlays)
+           do (delete-overlay overlay))
+  (setq org-assistant--streaming-overlays (make-hash-table :test #'equal))
   (setq org-assistant--inflight-request nil)
   (setq org-assistant--request-queue-active-p nil)
   (setq org-assistant--request-queue nil))
@@ -1220,12 +1242,45 @@ Return nil."
         (json-array-type 'vector))
     (json-read-from-string json)))
 
+(defun org-assistant--forward-stream-id-overlay ()
+  "Return the next stream id overlay from point."
+  (cl-loop with output = nil
+           while (not (or output (eobp)))
+           do (progn
+                (setq output (-some->>
+                              (overlays-in (point) (point))
+                              (--map (overlay-get it 'stream-id))
+                              (car)))
+                (forward-line 1))
+           finally return output))
+
+(defun org-assistant--kill-request (stream-id)
+  "Kill the request with STREAM-ID."
+  (let ((process (gethash stream-id org-assistant--request-processes-ht)))
+    (when (process-live-p process) (kill-process process))
+    (remhash stream-id org-assistant--request-processes-ht)
+    (-some--> (gethash stream-id org-assistant--streaming-overlays)
+      (with-current-buffer (overlay-buffer it)
+        (save-excursion
+          (goto-char (overlay-start it))
+          (when (save-match-data
+                  (save-excursion
+                    (goto-char (overlay-start it))
+                    (forward-line 1)
+                    (org-assistant--in-src-block-p)))
+            (insert (overlay-get it 'after-string))))
+        (delete-overlay it)))
+    (remhash stream-id org-assistant--streaming-overlays)
+    (setq org-assistant--buffer-requests
+          (--filter (not (string= it stream-id)) org-assistant--buffer-requests))
+    (setq org-assistant--inflight-request
+          (--filter (not (string= it stream-id)) org-assistant--inflight-request))))
+
 (defun org-assistant-cancel-block-at-point ()
   "Cancel the `org-assistant' execution at point.
 
 This refers to the streaming block before or after the current block.
-It will not cancel a block that is streaming at point.
-"
+It will not cancel a block that is streaming at point."
   (interactive)
   (save-match-data
     (save-excursion
@@ -1234,19 +1289,8 @@ It will not cancel a block that is streaming at point.
       (cond
        ((save-excursion
           (-some-->
-              (save-excursion
-                (when (re-search-forward org-assistant--begin-src-regexp nil t)
-                  (org-assistant--org-src-arguments)))
-            (alist-get :stream-id it)
-            (let* ((uuid it)
-                  (process (gethash uuid org-assistant--request-processes-ht)))
-              (progn
-                (when (process-live-p process) (kill-process process))
-                (remhash uuid org-assistant--request-processes-ht)
-                (setq org-assistant--buffer-requests
-                      (--filter (not (string= it uuid)) org-assistant--buffer-requests))
-                (setq org-assistant--inflight-request
-                      (--filter (not (string= it uuid)) org-assistant--inflight-request))))))
+              (save-excursion (org-assistant--forward-stream-id-overlay))
+            (org-assistant--kill-request it)))
         t)
        (t (let ((end (save-excursion
                        (forward-line 4)
@@ -1267,16 +1311,11 @@ It will not cancel a block that is streaming at point.
                 (cl-loop with uuid = nil
                          while (setq uuid (uuid-at-point))
                          do
-                         (-some-->
+                         (when
                              (gethash uuid org-assistant--request-processes-ht)
                            (progn
                              (replace-match "")
-                             (when (process-live-p it) (kill-process it))
-                             (remhash uuid org-assistant--request-processes-ht)
-                             (setq org-assistant--buffer-requests
-                                   (--filter (not (string= it uuid)) org-assistant--buffer-requests))
-                             (setq org-assistant--inflight-request
-                                   (--filter (not (string= it uuid)) org-assistant--inflight-request))))
+                             (org-assistant--kill-request uuid)))
                          (forward-line 1))))))))))
 
 (defun org-assistant--org-src-arguments ()
@@ -1322,6 +1361,17 @@ Sets point to the last unparsed line on completion."
              (when (process-live-p it) (kill-process it)
                    (remhash uuid org-assistant--request-processes-ht))))
   (setq org-assistant--buffer-requests nil))
+
+(defun org-assistant--in-src-block-p ()
+  "Return non-nil if in an assistant src block."
+  (and (org-in-src-block-p)
+       (let ((start-pt (point))
+             (element (org-element-at-point)))
+         (save-excursion
+           (goto-char (org-element-property :end element))
+           (re-search-backward org-assistant--end-src-regexp (org-element-property :begin element) t)
+           (end-of-line)
+           (<= start-pt (point))))))
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
