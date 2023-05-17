@@ -1369,9 +1369,8 @@ Sets point to the last unparsed line on completion."
              (element (org-element-at-point)))
          (save-excursion
            (goto-char (org-element-property :end element))
-           (re-search-backward org-assistant--end-src-regexp (org-element-property :begin element) t)
-           (end-of-line)
-           (<= start-pt (point))))))
+           (when (re-search-backward org-assistant--end-src-regexp (org-element-property :begin element) t)
+             (<= start-pt (match-end 0)))))))
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
