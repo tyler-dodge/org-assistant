@@ -457,7 +457,7 @@ Set specially by the macro `org-assistant-org-babel-async-response'.")
   "Hash table mapping request id to active process.")
 
 ;;;###autoload
-(defmacro org-assistant-org-babel-async-response (&rest prog)
+(defmacro org-assistant-org-babel-async-response (streaming &rest prog)
   "Macro for handling asynchronous responses with `org-mode'.
 
 Provides a function called `babel-response' that can be called in PROG to
@@ -502,7 +502,7 @@ later substituted by `org-assistant'."
                                     (goto-char (point-min))
                                     (if-let ((overlay (gethash ,replacement-var org-assistant--streaming-overlays)))
                                         (progn
-                                          (overlay-put overlay 'after-string (concat (overlay-get overlay 'after-string)
+                                          (overlay-put overlay 'before-string (concat (overlay-get overlay 'before-string)
                                                                                      message))
                                           (unless (or
                                                    (not streaming)
@@ -512,7 +512,7 @@ later substituted by `org-assistant'."
                                                           (org-assistant--in-src-block-p))))
                                             (org-assistant--kill-request (overlay-get overlay 'stream-id)))
                                           (when (not streaming)
-                                            (let ((text (overlay-get overlay 'after-string))
+                                            (let ((text (overlay-get overlay 'before-string))
                                                   (pt (overlay-start overlay)))
                                               (remhash ,replacement-var org-assistant--streaming-overlays)
                                               (delete-overlay overlay)
@@ -582,7 +582,8 @@ later substituted by `org-assistant'."
                                                  (if streaming
                                                      (--doto (make-overlay (point) (point))
                                                        (overlay-put it 'stream-id ,replacement-var)
-                                                       (overlay-put it 'after-string message)
+                                                       (overlay-put it 'after-string " _")
+                                                       (overlay-put it 'before-string message)
                                                        (puthash ,replacement-var it org-assistant--streaming-overlays))
                                                    (insert message))
                                                  (insert
@@ -620,7 +621,8 @@ later substituted by `org-assistant'."
                                                         response
                                                       (if (not (consp (car-safe response)))
                                                           (s-join "" response)
-                                                        (org-assistant--json-encode-pretty-print response)))))))))))
+                                                        (org-assistant--json-encode-pretty-print response))))))))))
+         (when ,streaming (run-at-time nil nil (lambda () (babel-response "" nil t)))))
        (when (buffer-live-p ,buffer-var) (with-current-buffer ,buffer-var (force-mode-line-update)))
        (with-current-buffer ,buffer-var
          (push ,replacement-var org-assistant--inflight-request))
@@ -888,7 +890,7 @@ An image of the GNU mascot
   (cond
    ((assoc :list-models params)
     (unless (string-blank-p (string-trim text)) (user-error "Cannot use :list-models if body is not empty"))
-    (org-assistant-org-babel-async-response
+    (org-assistant-org-babel-async-response nil
       (deferred:$
        (org-assistant--queue-list-models-request org-assistant--request-id))))
    (t
@@ -906,7 +908,7 @@ An image of the GNU mascot
         (let ((files (--> (alist-get :file params) (if (listp it) it (list it)))))
           (--each files (when (not (string-suffix-p ".png" it))
                           (user-error "Only .png output files are supported %s" it)))
-          (org-assistant-org-babel-async-response
+          (org-assistant-org-babel-async-response nil
             (deferred:$
              (org-assistant--queue-image-request org-assistant--request-id
                                                  (lambda (json) (babel-response json nil t))
@@ -926,7 +928,7 @@ An image of the GNU mascot
                                   (insert
                                    (base64-decode-string (alist-get 'b64_json data))))))))))))))
 
-       (t (org-assistant-org-babel-async-response
+       (t (org-assistant-org-babel-async-response t
             (deferred:$
              (org-assistant--queue-chat-request org-assistant--request-id
                                                 (lambda (json) (babel-response json nil t))
@@ -1269,7 +1271,7 @@ Return nil."
                   (save-excursion
                     (goto-char (overlay-start it))
                     (org-assistant--in-src-block-p)))
-            (insert (overlay-get it 'after-string))))
+            (insert (overlay-get it 'before-string))))
         (delete-overlay it)))
     (remhash stream-id org-assistant--streaming-overlays)
     (setq org-assistant--buffer-requests
