@@ -504,42 +504,43 @@ later substituted by `org-assistant'."
                                         (progn
                                           (overlay-put overlay 'after-string (concat (overlay-get overlay 'after-string)
                                                                                      message))
-                                          (unless (save-match-data
-                                                    (save-excursion
-                                                      (goto-char (overlay-start overlay))
-                                                      (forward-line 1)
-                                                      (org-assistant--in-src-block-p)))
+                                          (unless (or
+                                                   (not streaming)
+                                                   (save-match-data
+                                                        (save-excursion
+                                                          (goto-char (overlay-start overlay))
+                                                          (org-assistant--in-src-block-p))))
                                             (org-assistant--kill-request (overlay-get overlay 'stream-id)))
                                           (when (not streaming)
                                             (let ((text (overlay-get overlay 'after-string))
                                                   (pt (overlay-start overlay)))
                                               (remhash ,replacement-var org-assistant--streaming-overlays)
                                               (delete-overlay overlay)
-                                              (save-match-data
-                                                (save-excursion
-                                                  (goto-char pt)
-                                                  (let ((end-block
-                                                         (save-excursion
-                                                           (when
-                                                               (re-search-forward org-assistant--end-src-regexp nil t))
-                                                           (forward-line -1)
-                                                           (end-of-line)
-                                                           (point))))
-                                                    (when (and end-block
-                                                               (save-match-data
-                                                                 (save-excursion
-                                                                   (forward-line 1)
-                                                                   (org-assistant--in-src-block-p))))
-                                                      (insert (org-escape-code-in-string text))
-                                                      (run-hook-with-args
-                                                       'org-assistant-response-completed-hook
-                                                       ,replacement-var
-                                                       (buffer-substring-no-properties
-                                                        (save-excursion
-                                                          (re-search-backward org-assistant--begin-src-regexp)
-                                                          (forward-line 1)
-                                                          (point))
-                                                        end-block))))))))
+                                              (when pt
+                                                (save-match-data
+                                                  (save-excursion
+                                                    (goto-char pt)
+                                                    (let ((end-block
+                                                           (save-excursion
+                                                             (when
+                                                                 (re-search-forward org-assistant--end-src-regexp nil t))
+                                                             (forward-line -1)
+                                                             (end-of-line)
+                                                             (point))))
+                                                      (when (and end-block
+                                                                 (save-match-data
+                                                                   (save-excursion
+                                                                     (org-assistant--in-src-block-p))))
+                                                        (insert (org-escape-code-in-string text))
+                                                        (run-hook-with-args
+                                                         'org-assistant-response-completed-hook
+                                                         ,replacement-var
+                                                         (buffer-substring-no-properties
+                                                          (save-excursion
+                                                            (re-search-backward org-assistant--begin-src-regexp)
+                                                            (forward-line 1)
+                                                            (point))
+                                                          end-block)))))))))
                                           nil)
                                       (when (re-search-forward (rx (literal ,replacement-var)) nil t)
                                         (pcase response-type
@@ -560,7 +561,6 @@ later substituted by `org-assistant'."
                                           (_
                                            (let* ((,in-src-block-var (save-match-data
                                                                        (save-excursion
-                                                                         (forward-line 1)
                                                                          (org-assistant--in-src-block-p))))
                                                   (,insert-prompt-var
                                                    (and
@@ -579,10 +579,12 @@ later substituted by `org-assistant'."
                                                  (delete-region (match-beginning 0) (match-end 0))
                                                  (insert "#+BEGIN_SRC assistant :sender assistant"
                                                          "\n")
-                                                 (--doto (make-overlay (point) (point))
-                                                   (overlay-put it 'stream-id ,replacement-var)
-                                                   (overlay-put it 'after-string message)
-                                                   (puthash ,replacement-var it org-assistant--streaming-overlays))
+                                                 (if streaming
+                                                     (--doto (make-overlay (point) (point))
+                                                       (overlay-put it 'stream-id ,replacement-var)
+                                                       (overlay-put it 'after-string message)
+                                                       (puthash ,replacement-var it org-assistant--streaming-overlays))
+                                                   (insert message))
                                                  (insert
                                                   "
 #+END_SRC"
@@ -1266,7 +1268,6 @@ Return nil."
           (when (save-match-data
                   (save-excursion
                     (goto-char (overlay-start it))
-                    (forward-line 1)
                     (org-assistant--in-src-block-p)))
             (insert (overlay-get it 'after-string))))
         (delete-overlay it)))
@@ -1365,12 +1366,19 @@ Sets point to the last unparsed line on completion."
 (defun org-assistant--in-src-block-p ()
   "Return non-nil if in an assistant src block."
   (and (org-in-src-block-p)
-       (let ((start-pt (point))
-             (element (org-element-at-point)))
-         (save-excursion
-           (goto-char (org-element-property :end element))
-           (when (re-search-backward org-assistant--end-src-regexp (org-element-property :begin element) t)
-             (<= start-pt (match-end 0)))))))
+       (let* ((start-pt (point))
+              (element (org-element-at-point))
+              (element-end (org-element-property :end element)))
+         (when element-end
+           (save-excursion
+             (goto-char element-end)
+             (and
+              (save-excursion
+                (when (re-search-backward org-assistant--end-src-regexp (org-element-property :begin element) t)
+                  (<= start-pt (match-end 0))))
+              (save-excursion
+                (when (re-search-backward org-assistant--begin-src-regexp (org-element-property :begin element) t)
+                  (>= start-pt (match-end 0))))))))))
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
