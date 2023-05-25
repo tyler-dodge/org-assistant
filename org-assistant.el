@@ -367,14 +367,18 @@ contained in MESSAGE."
   "Keymap for `org-assistant-mode' buffers.")
 
 (defconst org-assistant--begin-src-regexp
-  (rx line-start "#+BEGIN_SRC"
+  (rx line-start (* whitespace) "#+BEGIN_SRC"
       (+ whitespace)
       (or "assistant" "?"))
   "Regexp for finding #+BEGIN_SRC ? blocks.")
 
 (defconst org-assistant--end-src-regexp
-  (rx line-start "#+END_SRC")
+  (rx line-start (* whitespace) "#+END_SRC")
   "Regexp for finding #+END_SRC blocks.")
+
+(defconst org-assistant--results-regexp
+  (rx line-start (* whitespace) "#+RESULTS:")
+  "Regexp for finding #+RESULTS blocks.")
 
 (defconst org-assistant--begin-example-regexp
   (rx "#+BEGIN_EXAMPLE")
@@ -1288,7 +1292,7 @@ It will not cancel a block that is streaming at point."
   (save-match-data
     (save-excursion
       (forward-line 0)
-      (re-search-forward (rx line-start "#+END_SRC") nil t)
+      (re-search-forward org-assistant--end-src-regexp nil t)
       (cond
        ((save-excursion
           (-some-->
@@ -1298,7 +1302,7 @@ It will not cancel a block that is streaming at point."
        (t (let ((end (save-excursion
                        (forward-line 4)
                        (point))))
-            (when (re-search-forward (rx line-start "#+RESULTS:") end t)
+            (when (re-search-forward org-assistant--results-regexp end t)
               (goto-char (match-beginning 0))
               (forward-line 1)
               (cl-flet ((uuid-at-point ()
