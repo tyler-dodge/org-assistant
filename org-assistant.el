@@ -942,6 +942,30 @@ An image of the GNU mascot
                                         ((babel-output-empty-p) response)
                                         (t ""))))))))))))
 
+(defun org-assistant-yank-block ()
+  "Add the current block at point to the kill ring."
+  (interactive)
+  (let ((block (org-assistant--block-contents)))
+    (unless block (user-error "Not in block"))
+    (kill-new block)))
+
+(defun org-assistant--block-contents ()
+  "Return the contents of the src block at location"
+  (when (org-assistant--in-src-block-p)
+    (save-excursion
+      (end-of-line)
+      (unless (re-search-backward org-assistant--begin-src-regexp nil t)
+        (user-error "Not at src block"))
+      (forward-line 1)
+      (let ((start-pt (point)))
+        (or (-some--> (--first (overlay-get it 'stream-id) (overlays-in start-pt start-pt))
+              (overlay-get it 'before-string))
+            (progn
+              (when (re-search-forward org-assistant--end-src-regexp nil t)
+                (forward-line -1))
+              (end-of-line)
+              (buffer-substring-no-properties start-pt (point))))))))
+
 ;;;###autoload
 (defun org-babel-execute:? (&rest args)
   "See `org-babel-execute:assistant'.
