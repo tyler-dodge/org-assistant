@@ -251,6 +251,11 @@ The buffer and point are set to the the end of the response."
   :group 'org-assistant
   :type '(number))
 
+(defcustom org-assistant-logging nil
+  "Enable `org-assistant' logging when set to non-nil."
+  :group 'org-assistant
+  :type '(boolean))
+
 (defcustom org-assistant-chat-extra-parameters-alist
   nil
   "Extra parameters to be sent with a chat request.
@@ -334,6 +339,11 @@ For org-assisant process buffers.")
 
 (defvar org-assistant-history nil
   "History variable for `org-assistant'.")
+
+(defvar org-assistant-logging-buffer "*org-asssistant-log*"
+  "Buffer used for logging `org-assistant'.
+
+See `org-assistant-logging'.")
 
 (defun org-assistant-with-initial-message (message)
   "Create and display a buffer named `org-assistant-buffer-name'.
@@ -464,6 +474,7 @@ Set specially by the macro `org-assistant-org-babel-async-response'.")
 (defmacro org-assistant-org-babel-async-response (streaming &rest prog)
   "Macro for handling asynchronous responses with `org-mode'.
 
+When STREAMING is set to non-nil, expect a streaming response for the endpoint.
 Provides a function called `babel-response' that can be called in PROG to
 substitute the response value in the org buffer that initiated this call.
 
@@ -669,12 +680,15 @@ ARGS is expected to be a plist with the following keys:
     (or method (error "Method must be set %S" args))
     (let ((request-id-var (make-symbol "request-id"))
           (start-marker-var (make-symbol "start-marker"))
+          (temp-file-var (make-symbol "temp-file"))
           (stream-var (make-symbol "stream")))
-      `(let ((,start-marker-var (--doto (make-marker) (set-marker it (point) (current-buffer)))))
+      `(let ((,start-marker-var (--doto (make-marker) (set-marker it (point) (current-buffer))))
+             (,temp-file-var (make-temp-file "json")))
          (lambda ()
            (let* ((promise (deferred:new))
                   (,stream-var ,stream)
                   (,request-id-var ,request-id)
+                  (,temp-file-var ,temp-file-var)
                   (shell-buffer (generate-new-buffer " *org-assistant-request*"))
                   (callback
                    (lambda ()
@@ -693,10 +707,12 @@ ARGS is expected to be a plist with the following keys:
                                              (set-marker ,start-marker-var nil)
                                              (funcall ,json)))
                                        (org-assistant--dedupe-alist it)
-                                       (let ((file (make-temp-file "json")))
-                                         (with-temp-file file
+                                       (progn ,temp-file-var
+                                         (with-temp-file ,temp-file-var
                                            (insert (org-assistant--json-encode it)))
-                                         (list "--data" (concat "@" file)))))))
+                                         (--doto
+                                             (list "--data" (concat "@" ,temp-file-var))
+                                           (org-assistant-log "Request Body: %S" it)))))))
                        (puthash ,request-id-var process org-assistant--request-processes-ht)
                        (push ,request-id-var org-assistant--buffer-requests)
                        (set-process-filter
@@ -714,9 +730,15 @@ ARGS is expected to be a plist with the following keys:
                                     (condition-case err
                                         (cl-loop for json in json-objects
                                                  do
-                                                 (funcall ,stream-var json))
-                                      (user-error (message "Failed to stream object %S" err))
-                                      (error (message "Failed to stream object %S" err)))
+                                                 (progn
+                                                   (org-assistant-log "Response: %S" json)
+                                                   (funcall ,stream-var json)))
+                                      (user-error
+                                       (org-assistant-log "Response Error: %S" err)
+                                       (message "Failed to stream object %S" err))
+                                      (error
+                                       (org-assistant-log "Response Error: %S" err)
+                                       (message "Failed to stream object %S" err)))
                                     (when json-objects
                                       (setq-local org-assistant--process-json-read-pt end-of-parse-pt)))))))))
                        (let ((original-sentinel (process-sentinel process)))
@@ -728,20 +750,28 @@ ARGS is expected to be a plist with the following keys:
                              (lambda ()
                                (cond
                                 ((not (string= (string-trim status) "finished"))
+                                 (org-assistant-log "Unexpected status %S" status)
                                  (deferred:errorback-post promise (concat (with-current-buffer shell-buffer (buffer-string)) "\n" status))
                                  t)
                                 ((not (buffer-live-p shell-buffer))
+                                 (org-assistant-log "Buffer unexpectedly not live")
                                  (deferred:errorback-post promise (concat "Buffer not live" (buffer-name shell-buffer)))
                                  t)
                                 (t
                                  (with-current-buffer shell-buffer
+                                   (org-assistant-log "Response Complete Success: %S" (buffer-string))
                                    (deferred:callback-post promise
                                                            (buffer-string)))))
 
                                (remhash ,request-id-var org-assistant--request-processes-ht)
                                (when (functionp original-sentinel)
                                  (funcall original-sentinel process status))
-                               (kill-buffer shell-buffer))))))))))
+                               (kill-buffer shell-buffer)))
+                            (if (file-exists-p ,temp-file-var)
+                                (progn
+                                  (delete-file ,temp-file-var)
+                                  (org-assistant-log "Deleted %S" ,temp-file-var))
+                              (org-assistant-log "Could not find temp file to delete %S" ,temp-file-var)))))))))
              (run-at-time nil nil (lambda ()
                                     (condition-case err
                                         (funcall callback)
@@ -950,7 +980,7 @@ An image of the GNU mascot
     (kill-new block)))
 
 (defun org-assistant--block-contents ()
-  "Return the contents of the src block at location"
+  "Return the contents of the src block at location."
   (when (org-assistant--in-src-block-p)
     (save-excursion
       (end-of-line)
@@ -1411,6 +1441,16 @@ Sets point to the last unparsed line on completion."
                   (and
                    (not (--first (overlay-get it 'stream-id) (overlays-in (point) (point))))
                    (>= start-pt (match-beginning 0)))))))))))
+
+(defun org-assistant-log (message &rest arg)
+  "Log MESSAGE with ARG like `format'.
+
+Only logs if `org-assistant-logging' is non-nil."
+  (when org-assistant-logging
+    (with-current-buffer (get-buffer-create org-assistant-logging-buffer)
+      (save-excursion
+        (goto-char (point-max))
+        (insert (format message arg) "\n")))))
 
 (provide 'org-assistant)
 ;;; org-assistant.el ends here
