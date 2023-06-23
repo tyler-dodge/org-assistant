@@ -1074,7 +1074,9 @@ Should be either assistant, system, or user" sender))))))))
                           (cons message-type
                                 (string-trim-right
                                  (org-unescape-code-in-string
-                                  (if (and noweb (eq message-type 'user))
+                                  (if (and noweb
+                                           (or (eq message-type 'user)
+                                               (eq message-type 'system)))
                                       (org-babel-expand-noweb-references)
                                     (buffer-substring-no-properties
                                      (point)
